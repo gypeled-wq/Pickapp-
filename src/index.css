@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300..900;1,300..900&family=Assistant:wght@200..800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Rubik", "Assistant", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Theme colors matching Technical Dashboard / Data Grid */
+  --color-tech-bg: #E4E3E0;
+  --color-tech-dark: #141414;
+  --color-tech-panel: #D1D0CC;
+  --color-tech-grid: #F2F2EF;
+
+  /* Custom subtle animation timings */
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+body {
+  font-family: var(--font-sans);
+  direction: rtl;
+  background-color: #E4E3E0; /* Technical gray-beige */
+  color: #141414; /* Dense dark ink */
+}
+
+/* Hard outlines and brut-styled flat buttons/containers */
+.tech-border {
+  border: 2px solid #141414;
+}
+
+.tech-border-b {
+  border-bottom: 2px solid #141414;
+}
+
+.tech-border-l {
+  border-left: 2px solid #141414;
+}
+
+.tech-border-r {
+  border-right: 2px solid #141414;
+}
+
+.tech-shadow {
+  box-shadow: 4px 4px 0px 0px #141414;
+}
+
+.tech-shadow-sm {
+  box-shadow: 2px 2px 0px 0px #141414;
+}
+
+.tech-shadow-active {
+  box-shadow: 1px 1px 0px 0px #141414;
+  transform: translate(1px, 1px);
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #D1D0CC;
+  border-left: 1px solid #141414;
+}
+::-webkit-scrollbar-thumb {
+  background: #141414;
+  border: 1px solid #D1D0CC;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #333333;
+}
+

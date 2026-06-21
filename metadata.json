@@ -1,0 +1,6 @@
+{
+  "name": "ניהול הסעות ילדים",
+  "description": "מערכת מרכזית להסדרת מערך איסוף הילדים, ניהול לו״ז שבועי לפי 3 ילדים, ספריית נהגים קבועים ומזדמנים, וממשקים להורים, ילדים ונהגים.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
