@@ -520,6 +520,13 @@ export const StorageEngine = {
       this.savePickups(pickups);
       const actionText = p.completed ? "הושלם בהצלחה" : "חזר לפעיל";
       this.addLog("עדכון סטטוס ביצוע", `האיסוף של ${p.childName} ביום ${p.day} סומן כ${actionText}`, p.completed ? "child" : "parent", p.childName);
+      
+      // הוספת התראת עדכון סטטוס
+      this.addAlert(
+        "עדכון סטטוס איסוף",
+        `האיסוף של ${p.childName} ביום ${p.day} שונה לסטטוס: ${actionText}`,
+        p.completed ? "success" : "info"
+      );
     }
   },
 };

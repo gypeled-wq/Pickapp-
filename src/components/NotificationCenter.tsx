@@ -19,6 +19,18 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
   const [isOpen, setIsOpen] = useState(false);
   const [toast, setToast] = useState<AlertNotification | null>(null);
 
+  // בקרת הרשאות להתראות דפדפן
+  const [notificationPermission, setNotificationPermission] = useState<string>(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        return Notification.permission;
+      } catch (e) {
+        return "unsupported";
+      }
+    }
+    return "unsupported";
+  });
+
   const currentDriver = activeDriverId ? StorageEngine.getDrivers().find((d) => d.id === activeDriverId) : null;
   const currentDriverName = currentDriver ? currentDriver.name.split(" ")[0] : "";
 
@@ -39,6 +51,34 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
     }
     return true;
   });
+
+  // סנכרון פסיבי של מצב ההרשאה בדפדפן
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        setNotificationPermission(Notification.permission);
+      } catch (e) {
+        console.warn("Notification permission query not supported", e);
+      }
+    }
+  }, []);
+
+  const requestPermission = async () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setNotificationPermission(perm);
+        if (perm === "granted") {
+          new Notification("סהרון - התראות דפדפן פעילות!", {
+            body: "מעולה! מעתה תקבלו התראות על נסיעות דחופות ושינויי סטטוס בזמן אמת.",
+            icon: "/favicon.ico"
+          });
+        }
+      } catch (e) {
+        console.error("Failed to request browser notification permission", e);
+      }
+    }
+  };
 
   useEffect(() => {
     // טעינת נתונים ראשונית
@@ -63,6 +103,27 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
 
           if (isRelevantToMe) {
             setToast(latest);
+
+            // הפעלת התראת דפדפן (Browser Notification)
+            if (typeof window !== "undefined" && "Notification" in window) {
+              try {
+                if (Notification.permission === "granted") {
+                  const isUrgent = latest.type === "urgent" || latest.title.includes("דחוף") || latest.message.includes("דחוף");
+                  const isStatusChange = latest.title.includes("סטטוס") || latest.message.includes("סומן") || latest.message.includes("שונה לסטטוס") || latest.message.includes("נאסף");
+
+                  if (isUrgent || isStatusChange) {
+                    new Notification(latest.title, {
+                      body: latest.message,
+                      icon: "/favicon.ico",
+                      tag: latest.id,
+                    });
+                  }
+                }
+              } catch (e) {
+                console.error("Could not dispatch browser notification", e);
+              }
+            }
+
             setTimeout(() => {
               setToast((curr) => (curr && curr.id === latest.id ? null : curr));
             }, 6000);
@@ -162,6 +223,30 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* בקרת הרשאה להתראות דפדפן */}
+              <div className="px-4 py-2.5 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center flex-row-reverse text-xs select-none">
+                <span className="font-bold text-indigo-950 flex items-center gap-1 flex-row-reverse">
+                  <span>התראות דפדפן (Push)</span>
+                </span>
+                {notificationPermission === "granted" ? (
+                  <span className="text-emerald-700 font-extrabold flex items-center gap-1 flex-row-reverse text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    <Check className="w-3.5 h-3.5 shrink-0" />
+                    <span>פעיל ומסונכרן 🔔</span>
+                  </span>
+                ) : notificationPermission === "denied" ? (
+                  <span className="text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-[11px] hover:cursor-help" title="ההרשאה חסומה בדפדפן. כדי לשנותה, לחצו על סמל המנעול בצד כתובת האתר בדפדפן">
+                    נעול בהגדרות ❌
+                  </span>
+                ) : (
+                  <button
+                    onClick={requestPermission}
+                    className="bg-indigo-600 hover:bg-indigo-750 text-white font-black px-3 py-1.5 text-[10px] rounded border border-indigo-950 shadow-[2px_2px_0_0_#1e1b4b] hover:shadow-none transition-all cursor-pointer"
+                  >
+                    הפעל התראות 🔔
+                  </button>
+                )}
               </div>
 
               <div className="max-h-[350px] overflow-y-auto divide-y divide-slate-50">

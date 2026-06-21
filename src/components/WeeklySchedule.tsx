@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN } from "../types";
 import { StorageEngine, subscribeToStore } from "../data";
-import { Calendar, Clock, User, AlertTriangle, Edit3, Trash2, CheckCircle, ShieldAlert, Plus, HelpCircle, Phone, Sparkles, PlusCircle, Share2, MessageSquare } from "lucide-react";
+import { Calendar, Clock, User, AlertTriangle, Edit3, Trash2, CheckCircle, ShieldAlert, Plus, HelpCircle, Phone, Sparkles, PlusCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface WeeklyScheduleProps {
@@ -45,17 +45,9 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const [urgentReportType, setUrgentReportType] = useState<"change" | "cancel">("change");
   const [urgentReportReason, setUrgentReportReason] = useState("");
 
-  // מצבי סנכרון Google Calendar
-  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
-  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
-  const [googleStatusText, setGoogleStatusText] = useState("");
-
   useEffect(() => {
     setPickups(StorageEngine.getPickups());
     setDrivers(StorageEngine.getDrivers());
-
-    const isConnected = localStorage.getItem("gcal_connected") === "true";
-    setIsGoogleConnected(isConnected);
 
     const unsubscribe = subscribeToStore(() => {
       setPickups(StorageEngine.getPickups());
@@ -82,56 +74,6 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     
     window.open(url, "_blank");
-  };
-
-  // ייבוא אירועים מיומן Google Calendar (סימולציה מלאה וערכים חיים)
-  const handleImportFromGoogle = () => {
-    setIsSyncingGoogle(true);
-    setGoogleStatusText("מתחבר ל-Google Calendar API ומחלץ אירועים רלוונטיים...");
-
-    setTimeout(() => {
-      const sampleEvents = [
-        { title: "איסוף נועה - חוג התעמלות קרקע", day: "שני", time: "16:00", notes: "אולם ספורט עירוני" },
-        { title: "איסוף איתי ועומר - קלינאית תקשורת", day: "רביעי", time: "13:30", notes: "מרפאת מכבי, קומה 2" },
-      ];
-
-      let added = 0;
-      sampleEvents.forEach(evt => {
-        const exists = pickups.some(p => p.day === evt.day && p.time === evt.time);
-        if (!exists) {
-          StorageEngine.addPickup({
-            day: evt.day,
-            childName: evt.title.includes("נועה") ? "נועה" : "איתי, עומר",
-            time: evt.time,
-            driverId: drivers[0]?.id || "drv_papa",
-            status: "regular",
-            notes: `[מיובא מיומן גוגל] ${evt.notes}`,
-            completed: false
-          });
-          added++;
-        }
-      });
-
-      localStorage.setItem("gcal_connected", "true");
-      setIsGoogleConnected(true);
-      setIsSyncingGoogle(false);
-      setGoogleStatusText(`הסנכרון הושלם בהצלחה! יובאו ${added} הסעות חדשות מיומן ה-Google שלכם.`);
-      setTimeout(() => setGoogleStatusText(""), 4000);
-    }, 1500);
-  };
-
-  // ייצוא אירועים ליומן Google Calendar
-  const handleExportToGoogle = () => {
-    setIsSyncingGoogle(true);
-    setGoogleStatusText("מתחבר ל-Google Calendar API ומייצא את כל ההסעות השבועיות...");
-
-    setTimeout(() => {
-      setIsSyncingGoogle(false);
-      localStorage.setItem("gcal_connected", "true");
-      setIsGoogleConnected(true);
-      setGoogleStatusText("הייצוא הושלם! כל ההסעות של השבוע שוריינו ביומן ה-Google המקושר שלכם.");
-      setTimeout(() => setGoogleStatusText(""), 4000);
-    }, 1200);
   };
 
   // מפתח נהג ברירת מחדל בעת פתיחת הטופס במידה ולא נבחר
@@ -303,51 +245,6 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
   return (
     <div className="space-y-6" id="scheduling_dashboard_module">
-      {/* פאנל שליטה וסנכרון יומן Google להורים */}
-      {userRole === "parent" && (
-        <div className="p-5 bg-indigo-50 border-4 border-indigo-950 shadow-[4px_4px_0_0_#1e1b4b] text-right space-y-4 rounded-xl">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-row-reverse">
-            <div className="space-y-1">
-              <h4 className="text-base font-black text-indigo-950 flex items-center gap-2 justify-end flex-row-reverse">
-                <Sparkles className="w-5 h-5 text-indigo-700 animate-pulse" />
-                <span>מערכת אוטומציה וסנכרון Google Calendar</span>
-              </h4>
-              <p className="text-xs text-indigo-900 font-bold leading-normal">
-                שלבו את הסעות הלו"ז עם היומן האישי שלכם! ניתן לייבא אירועים וכן לייצא את מערך האיסופים כמשימות משוריינות ביומנים שלכם ושל שאר הנהגים.
-              </p>
-              {googleStatusText && (
-                <div className="text-xs font-black text-emerald-800 bg-emerald-100 px-3 py-1.5 border-r-4 border-emerald-600 inline-block mt-2 animate-bounce">
-                  {googleStatusText}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2.5 justify-end w-full md:w-auto">
-              <button
-                onClick={handleImportFromGoogle}
-                className={`px-5 py-2.5 border-2 border-indigo-950 font-black text-xs transition-colors flex items-center gap-1.5 flex-row-reverse cursor-pointer ${
-                  isGoogleConnected
-                    ? "bg-white text-indigo-950 hover:bg-indigo-100 shadow-[3px_3px_0_0_#1e1b4b]"
-                    : "bg-indigo-600 text-white hover:bg-indigo-750 shadow-[3px_3px_0_0_#1e1b4b]"
-                }`}
-                disabled={isSyncingGoogle}
-              >
-                <Calendar className="w-4 h-4" />
-                <span>{isSyncingGoogle ? "בסנכרון..." : "חבר וייבא מיומן Google Calendar"}</span>
-              </button>
-              {isGoogleConnected && (
-                <button
-                  onClick={handleExportToGoogle}
-                  className="px-5 py-2.5 border-2 border-indigo-950 bg-indigo-950 text-white hover:bg-white hover:text-indigo-950 font-black text-xs shadow-[3px_3px_0_0_#1e1b4b] transition-colors flex items-center gap-1.5 flex-row-reverse cursor-pointer"
-                  disabled={isSyncingGoogle}
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>ייצא הסעות שבועיות ליומן גוגל</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
       {/* כפתור דיווח מהיר על שינויים עליון */}
       {userRole === "parent" && (
         <div className="flex flex-wrap items-center justify-between gap-4 bg-[#FFD4D4] border-4 border-[#141414] tech-shadow p-5 flex-row-reverse text-right">
