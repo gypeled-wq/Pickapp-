@@ -24,7 +24,7 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
 
   // ערכי טופס
   const [formDay, setFormDay] = useState("ראשון");
-  const [formChild, setFormChild] = useState("איתי");
+  const [formChildren, setFormChildren] = useState<string[]>(["איתי"]);
   const [formTime, setFormTime] = useState("13:30");
   const [formDriverId, setFormDriverId] = useState("");
   const [formStatus, setFormStatus] = useState<"regular" | "urgent">("regular");
@@ -66,7 +66,7 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
     if (userRole === "child") return; // View-only
     setEditingPickup(null);
     setFormDay(day);
-    setFormChild(child);
+    setFormChildren([child]);
     setFormTime("13:30");
     if (drivers.length > 0) {
       setFormDriverId(drivers[0].id);
@@ -81,7 +81,8 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
     if (userRole === "child") return; // View-only
     setEditingPickup(pickup);
     setFormDay(pickup.day);
-    setFormChild(pickup.childName);
+    const parsed = pickup.childName.split(",").map(c => c.trim()).filter(Boolean);
+    setFormChildren(parsed.length > 0 ? parsed : ["איתי"]);
     setFormTime(pickup.time);
     setFormDriverId(pickup.driverId);
     setFormStatus(pickup.status);
@@ -113,12 +114,13 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
       setIsQuickDriver(false);
     }
 
+    const childNamesString = formChildren.join(", ");
     if (editingPickup) {
       // עדכון הקיים
       StorageEngine.updatePickup({
         ...editingPickup,
         day: formDay,
-        childName: formChild,
+        childName: childNamesString,
         time: formTime,
         driverId: targetDriverId,
         status: formStatus,
@@ -128,7 +130,7 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
       // יצירת חדש
       StorageEngine.addPickup({
         day: formDay,
-        childName: formChild,
+        childName: childNamesString,
         time: formTime,
         driverId: targetDriverId,
         status: formStatus,
@@ -209,7 +211,7 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
 
   // שליפת איסוף רלוונטי ליום וילד ספציפיים
   const getPickupFor = (day: string, child: string): Pickup | undefined => {
-    return pickups.find((p) => p.day === day && p.childName === child);
+    return pickups.find((p) => p.day === day && p.childName.split(",").map(c => c.trim()).includes(child));
   };
 
   return (
@@ -301,7 +303,7 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
                       {item ? (
                         /* כרטיס הסעה קיים */
                         <motion.div
-                          layoutId={`pickup_card_${item.id}`}
+                          layoutId={`pickup_card_${item.id}_${child}`}
                           className={`p-4 border-2 border-[#141414] transition-all relative group overflow-hidden ${
                             item.completed
                               ? "bg-[#E4E3E0] opacity-85 shadow-none"
@@ -671,11 +673,11 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
               id="scheduling_form_modal"
             >
               <h3 className="font-extrabold text-[#141414] border-b-2 border-[#141414] pb-2 mb-4 text-base italic uppercase">
-                {editingPickup ? "עריכת הסעה קיימת / EDIT ENTRY" : `תיאום איסוף חדש עבור: ${formChild}`}
+                {editingPickup ? "עריכת הסעה קיימת / EDIT ENTRY" : `תיאום איסוף חדש עבור: ${formChildren.join(", ")}`}
               </h3>
 
               <form onSubmit={handleSavePickup} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-800">יום</label>
                     <select
@@ -692,21 +694,6 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-800">ילד/ה</label>
-                    <select
-                      value={formChild}
-                      onChange={(e) => setFormChild(e.target.value)}
-                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-right cursor-pointer focus:outline-none"
-                    >
-                      {DEFAULT_CHILDREN.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-800">שעה</label>
                     <input
                       type="time"
@@ -715,6 +702,38 @@ export default function WeeklySchedule({ userRole }: WeeklyScheduleProps) {
                       onChange={(e) => setFormTime(e.target.value)}
                       className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-left font-mono focus:outline-none"
                     />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800 block font-sans">עבור הילדים (ניתן לבחור יותר מילד אחד)</label>
+                  <div className="flex gap-2 flex-wrap flex-row-reverse mt-1">
+                    {DEFAULT_CHILDREN.map((c) => {
+                      const isChecked = formChildren.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            if (isChecked) {
+                              if (formChildren.length > 1) {
+                                setFormChildren(formChildren.filter((x) => x !== c));
+                              }
+                            } else {
+                              setFormChildren([...formChildren, c]);
+                            }
+                          }}
+                          className={`px-4 py-2 border-2 border-[#141414] text-xs font-black transition-all cursor-pointer transform active:translate-y-0.5 flex items-center gap-1.5 ${
+                            isChecked
+                              ? "bg-[#141414] text-white shadow-none animate-press-feedback"
+                              : "bg-white text-[#141414] hover:bg-slate-100 shadow-[2px_2px_0_0_#141414]"
+                          }`}
+                        >
+                          <span>{c}</span>
+                          <span>👦</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
