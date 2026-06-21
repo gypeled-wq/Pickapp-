@@ -238,9 +238,14 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     setUrgentReportReason("");
   };
 
-  // שליפת איסוף רלוונטי ליום וילד ספציפיים
+  // שליפת כל האיסופים הרלוונטיים ליום וילד ספציפיים (שלא תהיה הגבלה יומית)
+  const getPickupsFor = (day: string, child: string): Pickup[] => {
+    return pickups.filter((p) => p.day === day && p.childName.split(",").map(c => c.trim()).includes(child));
+  };
+
+  // שליפת איסוף יחיד (הראשון) לצורכי תאימות במידת הצורך
   const getPickupFor = (day: string, child: string): Pickup | undefined => {
-    return pickups.find((p) => p.day === day && p.childName.split(",").map(c => c.trim()).includes(child));
+    return getPickupsFor(day, child)[0];
   };
 
   return (
@@ -293,8 +298,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
           ))}
         </div>
       </div>
-
-      {/* תצוגת גריד מלאה לשולחן עבודה (RTL Desktop Grid) */}
+         {/* תצוגת גריד מלאה לשולחן עבודה (RTL Desktop Grid) */}
       <div className="hidden md:block overflow-x-auto" id="desktop_weekly_grid">
         <table className="w-full text-right border-4 border-[#141414] border-collapse bg-white font-mono">
           <thead>
@@ -324,139 +328,157 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
                 {/* משבצות הילדים */}
                 {DEFAULT_CHILDREN.map((child) => {
-                  const item = getPickupFor(day, child);
-                  const driver = item ? drivers.find((d) => d.id === item.driverId) : null;
-                  const isMyRide = item && userRole === "driver" && activeDriverId && item.driverId === activeDriverId;
-                  const isOtherRide = item && userRole === "driver" && activeDriverId && item.driverId !== activeDriverId;
+                  const items = getPickupsFor(day, child);
 
                   return (
-                    <td key={child} className="py-3 px-3 align-middle border-l-2 border-[#141414] last:border-l-0">
-                      {item ? (
-                        /* כרטיס הסעה קיים */
-                        <motion.div
-                          layoutId={`pickup_card_${item.id}_${child}`}
-                          className={`p-4 border-2 border-[#141414] transition-all relative group overflow-hidden ${
-                            isMyRide
-                              ? "bg-emerald-50 border-emerald-500 ring-4 ring-emerald-300 ring-offset-1 shadow-none"
-                              : isOtherRide
-                              ? "bg-slate-50 opacity-40 grayscale-[50%] contrast-75 cursor-not-allowed select-none pointer-events-none"
-                              : item.completed
-                              ? "bg-[#E4E3E0] opacity-85 shadow-none"
-                              : item.status === "urgent"
-                              ? "bg-[#FFD4D4] shadow-[4px_4px_0_0_#141414]"
-                              : "bg-white shadow-[2px_2px_0_0_#141414] hover:shadow-[4px_4px_0_0_#141414]"
-                          }`}
-                        >
-                          {/* שינוי דחוף - סטטוס פעימה גראפית */}
-                          {item.status === "urgent" && !item.completed && (
-                            <span className="absolute top-0 right-0 left-0 h-1.5 bg-red-600"></span>
-                          )}
+                    <td key={child} className="py-3 px-3 align-top border-l-2 border-[#141414] last:border-l-0">
+                      {items.length > 0 ? (
+                        <div className="space-y-3.5">
+                          {items.map((item) => {
+                            const driver = drivers.find((d) => d.id === item.driverId);
+                            const isMyRide = userRole === "driver" && activeDriverId && item.driverId === activeDriverId;
+                            const isOtherRide = userRole === "driver" && activeDriverId && item.driverId !== activeDriverId;
 
-                          {isMyRide && (
-                            <div className="absolute top-0 right-0 left-0 bg-emerald-500 text-white text-[9px] font-black tracking-wider text-center py-0.5">
-                              ★ הנסיעה המשויכת אליך ★
-                            </div>
-                          )}
-
-                          <div className="flex justify-between items-start gap-2 flex-row-reverse mb-2 mt-1.5">
-                            {/* שעה מודגשת */}
-                            <span className="inline-flex items-center gap-1 text-sm font-black text-black bg-[#E4E3E0] border border-[#141414] px-2 py-0.5 flex-row-reverse">
-                              <Clock className="w-3.5 h-3.5" />
-                              <span className="font-mono">{item.time}</span>
-                            </span>
-
-                            {/* סוג סטטוס */}
-                            <span
-                              className={`text-[10px] px-2 py-0.5 border border-[#141414] font-black uppercase tracking-wider font-mono ${
-                                item.completed
-                                  ? "bg-[#D1D0CC] text-[#141414]"
-                                  : item.status === "urgent"
-                                  ? "bg-red-600 text-white animate-pulse"
-                                  : "bg-[#141414] text-white"
-                              }`}
-                            >
-                              {item.completed ? "CLOSED" : item.status === "urgent" ? "URGENT !!" : "REGULAR"}
-                            </span>
-                          </div>
-
-                          {/* פרטי הנהג והרכב */}
-                          <div className="space-y-1.5 text-right mt-3">
-                            <div className="flex items-center gap-1.5 flex-row-reverse text-sm font-bold text-slate-900">
-                              <User className="w-4 h-4 text-slate-700" />
-                              <span className="font-bold underline">{driver ? driver.name : "רכב לא ידוע"}</span>
-                              {driver?.type === "guest" && (
-                                <span className="bg-orange-100 text-orange-900 border border-orange-500 text-[9px] font-black font-mono px-1">GUEST</span>
-                              )}
-                            </div>
-
-                            {driver?.phone && (
-                              <div className="text-xs text-slate-700 flex items-center gap-1 flex-row-reverse font-mono">
-                                <Phone className="w-3.5 h-3.5" />
-                                <a href={`tel:${driver.phone}`} className="hover:text-black font-bold ltr">
-                                  {driver.phone}
-                                </a>
-                              </div>
-                            )}
-
-                            {/* הערות סציפיות */}
-                            {item.notes ? (
-                              <p className="text-xs text-slate-700 bg-[#E4E3E0] p-2 border-r-4 border-[#141414] mt-2 font-mono">
-                                {item.notes}
-                              </p>
-                            ) : (
-                              <p className="text-xs italic text-slate-500 mt-1">אין הערות נוספות</p>
-                            )}
-                          </div>
-
-                          {/* מערכת כפתורים חכמה */}
-                          <div className="mt-4 pt-3 border-t-2 border-[#141414] flex justify-between items-center gap-2 flex-row-reverse">
-                            {/* סימון השלמה לילד או הורה */}
-                            <button
-                              onClick={() => handleToggleCompletion(item.id)}
-                              className={`flex items-center gap-1 text-xs font-black px-2 py-1 border border-[#141414] transition-all cursor-pointer flex-row-reverse ${
-                                item.completed
-                                  ? "bg-emerald-100 text-emerald-900 font-black"
-                                  : "bg-[#D1D0CC] text-slate-800 hover:bg-[#141414] hover:text-white"
-                              }`}
-                              title={item.completed ? "סמן כלא בוצע" : "סמן כהושלם בהצלחה!"}
-                            >
-                              <CheckCircle className={`w-4 h-4 ${item.completed ? "text-emerald-700 fill-emerald-100" : ""}`} />
-                              <span>{item.completed ? "נאסף!" : "נאסף?"}</span>
-                            </button>
-
-                            {/* כפתור WhatsApp מהיר - זמין להורים, וכן לנהג המשויך כחלק מהתיאום */}
-                            {(userRole === "parent" || isMyRide) && (
-                              <button
-                                onClick={() => shareOnWhatsApp(item)}
-                                className="p-1 px-1.5 text-white bg-[#25D366] hover:bg-[#128C7E] border border-[#141414] shadow-[1px_1px_0_0_#141414] font-black text-[9px] flex items-center gap-1 cursor-pointer transition-colors"
-                                title="שלח תזכורת ופרטים ב-WhatsApp"
+                            return (
+                              <motion.div
+                                key={item.id}
+                                layoutId={`pickup_card_${item.id}_${child}`}
+                                className={`p-4 border-2 border-[#141414] transition-all relative group overflow-hidden ${
+                                  isMyRide
+                                    ? "bg-emerald-50 border-emerald-500 ring-4 ring-emerald-300 ring-offset-1 shadow-none"
+                                    : isOtherRide
+                                    ? "bg-slate-50 opacity-40 grayscale-[50%] contrast-75 cursor-not-allowed select-none pointer-events-none"
+                                    : item.completed
+                                    ? "bg-[#E4E3E0] opacity-85 shadow-none"
+                                    : item.status === "urgent"
+                                    ? "bg-[#FFD4D4] shadow-[4px_4px_0_0_#141414]"
+                                    : "bg-white shadow-[2px_2px_0_0_#141414] hover:shadow-[4px_4px_0_0_#141414]"
+                                }`}
                               >
-                                <MessageSquare className="w-3 h-3 text-white fill-white" />
-                                <span>WhatsApp</span>
-                              </button>
-                            )}
+                                {/* שינוי דחוף - סטטוס פעימה גראפית */}
+                                {item.status === "urgent" && !item.completed && (
+                                  <span className="absolute top-0 right-0 left-0 h-1.5 bg-red-600"></span>
+                                )}
 
-                            {/* הרשאות הורים - מחיקה ועריכה */}
-                            {userRole === "parent" && (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => openEditForm(item)}
-                                  className="p-1 text-slate-700 hover:text-black hover:bg-slate-100 border border-transparent hover:border-[#141414] transition-colors cursor-pointer"
-                                  title="עריכת פרטי הסעה"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeletePickup(item.id)}
-                                  className="p-1 text-slate-700 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-[#141414] transition-colors cursor-pointer"
-                                  title="בטל הסעה"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </motion.div>
+                                {isMyRide && (
+                                  <div className="absolute top-0 right-0 left-0 bg-emerald-500 text-white text-[9px] font-black tracking-wider text-center py-0.5">
+                                    ★ הנסיעה המשויכת אליך ★
+                                  </div>
+                                )}
+
+                                <div className="flex justify-between items-start gap-2 flex-row-reverse mb-2 mt-1.5">
+                                  {/* שעה מודגשת */}
+                                  <span className="inline-flex items-center gap-1 text-sm font-black text-black bg-[#E4E3E0] border border-[#141414] px-2 py-0.5 flex-row-reverse">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span className="font-mono">{item.time}</span>
+                                  </span>
+
+                                  {/* סוג סטטוס */}
+                                  <span
+                                    className={`text-[10px] px-2 py-0.5 border border-[#141414] font-black uppercase tracking-wider font-mono ${
+                                      item.completed
+                                        ? "bg-[#D1D0CC] text-[#141414]"
+                                        : item.status === "urgent"
+                                        ? "bg-red-600 text-white animate-pulse"
+                                        : "bg-[#141414] text-white"
+                                    }`}
+                                  >
+                                    {item.completed ? "CLOSED" : item.status === "urgent" ? "URGENT !!" : "REGULAR"}
+                                  </span>
+                                </div>
+
+                                {/* פרטי הנהג והרכב */}
+                                <div className="space-y-1.5 text-right mt-3">
+                                  <div className="flex items-center gap-1.5 flex-row-reverse text-sm font-bold text-slate-900">
+                                    <User className="w-4 h-4 text-slate-700" />
+                                    <span className="font-bold underline">{driver ? driver.name : "רכב לא ידוע"}</span>
+                                    {driver?.type === "guest" && (
+                                      <span className="bg-orange-100 text-orange-900 border border-orange-500 text-[9px] font-black font-mono px-1">GUEST</span>
+                                    )}
+                                  </div>
+
+                                  {driver?.phone && (
+                                    <div className="text-xs text-slate-700 flex items-center gap-1 flex-row-reverse font-mono">
+                                      <Phone className="w-3.5 h-3.5" />
+                                      <a href={`tel:${driver.phone}`} className="hover:text-black font-bold ltr">
+                                        {driver.phone}
+                                      </a>
+                                    </div>
+                                  )}
+
+                                  {/* הערות סציפיות */}
+                                  {item.notes ? (
+                                    <p className="text-xs text-slate-700 bg-[#E4E3E0] p-2 border-r-4 border-[#141414] mt-2 font-mono text-right" style={{ direction: 'rtl' }}>
+                                      {item.notes}
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs italic text-slate-500 mt-1">אין הערות נוספות</p>
+                                  )}
+                                </div>
+
+                                {/* מערכת כפתורים חכמה */}
+                                <div className="mt-4 pt-3 border-t-2 border-[#141414] flex justify-between items-center gap-2 flex-row-reverse">
+                                  {/* סימון השלמה לילד או הורה */}
+                                  <button
+                                    onClick={() => handleToggleCompletion(item.id)}
+                                    className={`flex items-center gap-1 text-xs font-black px-2 py-1 border border-[#141414] transition-all cursor-pointer flex-row-reverse ${
+                                      item.completed
+                                        ? "bg-emerald-100 text-emerald-950 font-black"
+                                        : "bg-[#D1D0CC] text-slate-800 hover:bg-[#141414] hover:text-white"
+                                    }`}
+                                    title={item.completed ? "סמן כלא בוצע" : "סמן כהושלם בהצלחה!"}
+                                  >
+                                    <CheckCircle className={`w-4 h-4 ${item.completed ? "text-emerald-700 fill-emerald-110" : ""}`} />
+                                    <span>{item.completed ? "נאסף!" : "נאסף?"}</span>
+                                  </button>
+
+                                  {/* כפתור WhatsApp מהיר - זמין להורים, וכן לנהג המשויך כחלק מהתיאום */}
+                                  {(userRole === "parent" || isMyRide) && (
+                                    <button
+                                      onClick={() => shareOnWhatsApp(item)}
+                                      className="p-1 px-1.5 text-white bg-[#25D366] hover:bg-[#128C7E] border border-[#141414] shadow-[1px_1px_0_0_#141414] font-black text-[9px] flex items-center gap-1 cursor-pointer transition-colors"
+                                      title="שלח תזכורת ופרטים ב-WhatsApp"
+                                    >
+                                      <MessageSquare className="w-3 h-3 text-white fill-white" />
+                                      <span>WhatsApp</span>
+                                    </button>
+                                  )}
+
+                                  {/* הרשאות הורים - מחיקה ועריכה */}
+                                  {userRole === "parent" && (
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => openEditForm(item)}
+                                        className="p-1 text-slate-705 hover:text-black hover:bg-slate-100 border border-transparent hover:border-[#141414] transition-colors cursor-pointer"
+                                        title="עריכת פרטי הסעה"
+                                      >
+                                        <Edit3 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeletePickup(item.id)}
+                                        className="p-1 text-slate-705 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-[#141414] transition-colors cursor-pointer"
+                                        title="בטל הסעה"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+
+                          {/* כפתור הוספה נוספת מהיר להורים */}
+                          {userRole === "parent" && (
+                            <button
+                              onClick={() => openAddForm(day, child)}
+                              className="w-full py-2 border-2 border-dashed border-[#141414] hover:bg-[#D1D0CC]/35 text-[#141414] text-xs font-black transition-all flex items-center justify-center gap-1.5 bg-white cursor-pointer"
+                            >
+                              <Plus className="w-4 h-4 text-slate-700" />
+                              <span>הוסף נסיעה נוספת ליום {day}</span>
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         /* מקום ריק - אפשרות הוספה להורים */
                         userRole === "parent" ? (

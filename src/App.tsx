@@ -111,6 +111,13 @@ export default function App() {
                 <span className="text-[10px] bg-[#141414] text-[#E4E3E0] px-2 py-0.5 font-mono font-bold">
                   {userRole === "parent" ? "● מנהל/הורים" : userRole === "driver" ? "● ממשק נהג" : "● תצוגת ילדים"}
                 </span>
+                <span className={`text-[9px] px-1.5 py-0.5 font-mono font-black border uppercase tracking-wider ${
+                  import.meta.env.PROD
+                    ? "bg-emerald-600 text-white border-emerald-950"
+                    : "bg-amber-100 text-amber-950 border-amber-500 animate-pulse"
+                }`}>
+                  {import.meta.env.PROD ? "PROD (PRODUCTION)" : "DEV (PLAYGROUND)"}
+                </span>
               </h1>
               <p className="text-[10px] text-slate-700 font-mono tracking-wider uppercase">מערך הסעות משפחתי מעודכן בזמן אמת</p>
             </div>
