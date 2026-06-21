@@ -15,17 +15,17 @@ const MAAYAN_ID = "drv_maayan";
 const INITIAL_DRIVERS: Driver[] = [
   {
     id: PAPA_ID,
-    name: "ארז (אבא)",
-    phone: "052-123-4567",
-    vehicleInfo: "ניסאן קשקאי כחולה (מס׳ 33-444-55)",
+    name: "גיא (אבא)",
+    phone: "054-312-9987",
+    vehicleInfo: "קיה נירו שחורה (מס׳ 502-71-002)",
     type: "permanent",
     reminderOptIn: true,
   },
   {
     id: MAMA_ID,
-    name: "מיכל (אמא)",
-    phone: "054-987-6543",
-    vehicleInfo: "יונדאי איוניק אפורה (מס׳ 12-345-67)",
+    name: "נועה (אמא)",
+    phone: "052-585-6806",
+    vehicleInfo: "קיה נירו אפורה (מס׳ XXX-XX-XXX)",
     type: "permanent",
     reminderOptIn: true,
   },
