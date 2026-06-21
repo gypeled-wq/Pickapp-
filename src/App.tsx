@@ -102,16 +102,16 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex justify-between items-center flex-row-reverse">
           {/* לוגו המערכת */}
           <div className="flex items-center gap-2.5 flex-row-reverse text-right">
-            <div className="bg-[#141414] text-[#E4E3E0] p-2.5 border-2 border-[#141414] tech-shadow-sm">
+            <div className="hidden sm:block bg-[#141414] text-[#E4E3E0] p-2.5 border-2 border-[#141414] tech-shadow-sm">
               <CalendarCheck className="w-5.5 h-5.5 font-bold" />
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-black tracking-tight text-[#141414] flex items-center gap-1.5 flex-row-reverse font-serif uppercase italic">
-                <span>KIDRIDE / סהרון</span>
-                <span className="text-[10px] bg-[#141414] text-[#E4E3E0] px-2 py-0.5 font-mono font-bold">
+                <span className="hidden sm:inline">KIDRIDE / סהרון</span>
+                <span className="hidden sm:inline-block text-[10px] bg-[#141414] text-[#E4E3E0] px-2 py-0.5 font-mono font-bold">
                   {userRole === "parent" ? "● מנהל/הורים" : userRole === "driver" ? "● ממשק נהג" : "● תצוגת ילדים"}
                 </span>
-                <span className={`text-[9px] px-1.5 py-0.5 font-mono font-black border uppercase tracking-wider ${
+                <span className={`hidden sm:inline-block text-[9px] px-1.5 py-0.5 font-mono font-black border uppercase tracking-wider ${
                   (import.meta as any).env?.PROD
                     ? "bg-emerald-600 text-white border-emerald-950"
                     : "bg-amber-100 text-amber-950 border-amber-500 animate-pulse"
@@ -119,7 +119,7 @@ export default function App() {
                   {(import.meta as any).env?.PROD ? "PROD (PRODUCTION)" : "DEV (PLAYGROUND)"}
                 </span>
               </h1>
-              <p className="text-[10px] text-slate-700 font-mono tracking-wider uppercase">מערך הסעות משפחתי מעודכן בזמן אמת</p>
+              <p className="hidden sm:block text-[10px] text-slate-700 font-mono tracking-wider uppercase">מערך הסעות משפחתי מעודכן בזמן אמת</p>
             </div>
           </div>
 
@@ -258,9 +258,9 @@ export default function App() {
                 <div className="space-y-1">
                   <h4 className="text-base font-black text-emerald-950 flex items-center gap-2 justify-end flex-row-reverse">
                     <Car className="w-5 h-5 text-emerald-700 animate-pulse" />
-                    <span>ממשק נהג מלווה / נסיעות השבוע שלי</span>
+                    <span className="hidden sm:inline">ממשק נהג מלווה / נסיעות השבוע שלי</span>
                   </h4>
-                  <p className="text-xs text-emerald-900 font-bold leading-normal">
+                  <p className="hidden sm:block text-xs text-emerald-900 font-bold leading-normal">
                     שלום! אנא בחרו את שמכם כדי לראות את הנסיעות המשויכות אליכם השבוע, לעדכן סטטוס &quot;נאסף&quot;, ולצפות בהתראות המיועדות לכם בלבד.
                   </p>
                 </div>

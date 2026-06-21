@@ -45,6 +45,15 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const [urgentReportTime, setUrgentReportTime] = useState("13:30");
   const [urgentReportType, setUrgentReportType] = useState<"change" | "cancel">("change");
   const [urgentReportReason, setUrgentReportReason] = useState("");
+  const [selectedUrgentPickupId, setSelectedUrgentPickupId] = useState("");
+  const [urgentReportSuccessMsg, setUrgentReportSuccessMsg] = useState<{
+    fatherUrl: string;
+    motherUrl: string;
+    fatherName: string;
+    motherName: string;
+    fatherSent: boolean;
+    motherSent: boolean;
+  } | null>(null);
 
   useEffect(() => {
     setPickups(StorageEngine.getPickups());
@@ -317,46 +326,58 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const handleUrgentReportSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (urgentReportType === "cancel") {
-      // חיפוש הסעה קיימת באותו יום, שעה וילד לביטול
-      const match = pickups.find(
+    let finalChild = urgentReportChild;
+    let finalDay = urgentReportDay;
+    let finalTime = urgentReportTime;
+
+    // First find the pickup (if selected)
+    let match = pickups.find(p => p.id === selectedUrgentPickupId);
+    if (!match) {
+      match = pickups.find(
         (p) => p.day === urgentReportDay && p.childName === urgentReportChild
       );
+    }
+
+    if (match) {
+      finalChild = match.childName;
+      finalDay = match.day;
+      if (urgentReportType !== "cancel") {
+        finalTime = urgentReportTime || match.time;
+      } else {
+        finalTime = match.time;
+      }
+    }
+
+    if (urgentReportType === "cancel") {
       if (match) {
         StorageEngine.deletePickup(match.id);
       } else {
-        // במידה ולא נמצאה רשומה מדויקת, עדיין נפיץ דיווח והתראה ידנית
         StorageEngine.addLog(
           "ביטול הסעה - דחוף",
-          `בוטל איסוף של ${urgentReportChild} ביום ${urgentReportDay} שתוכנן בסביבות שעה ${urgentReportTime}. סיבה: ${urgentReportReason}`,
+          `בוטל איסוף של ${finalChild} ביום ${finalDay} שתוכנן בסביבות שעה ${finalTime}. סיבה: ${urgentReportReason}`,
           "parent",
-          urgentReportChild
+          finalChild
         );
         StorageEngine.addAlert(
           "בוטלה הסעה - דחוף!",
-          `ההסעה המתוכננת של ${urgentReportChild} ביום ${urgentReportDay} בוטלה בדחיפות. הערה: ${urgentReportReason}`,
+          `ההסעה המתוכננת של ${finalChild} ביום ${finalDay} בבוטלה בדחיפות. הערה: ${urgentReportReason}`,
           "urgent"
         );
       }
     } else {
-      // שינוי דחוף במקום הסעה קיימת או החלפת נהג של הרגע האחרון
-      const match = pickups.find(
-        (p) => p.day === urgentReportDay && p.childName === urgentReportChild
-      );
       if (match) {
         StorageEngine.updatePickup({
           ...match,
           status: "urgent",
-          notes: `שינוי דחוף: ${urgentReportReason} (עדכון זמן אמת בשעה ${urgentReportTime})`,
+          time: finalTime,
+          notes: `שינוי דחוף: ${urgentReportReason} (עדכון זמן אמת בשעה ${finalTime})`,
         });
       } else {
-        // הוספת הסעה חדשה שהשתנתה כדחופה
-        // נשייך כברירת מחדל למיכל (אמא) במידה ואין נהג ידוע
         const defaultDriver = drivers.length > 0 ? drivers[0].id : "";
         StorageEngine.addPickup({
-          day: urgentReportDay,
-          childName: urgentReportChild,
-          time: urgentReportTime,
+          day: finalDay,
+          childName: finalChild,
+          time: finalTime,
           driverId: defaultDriver,
           status: "urgent",
           notes: `שינוי מהיר מעודכן: ${urgentReportReason}`,
@@ -365,8 +386,33 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       }
     }
 
-    setIsUrgentReporterOpen(false);
-    setUrgentReportReason("");
+    // Prepare WhatsApp links to BOTH parents (Erez and Michal)
+    const father = drivers.find(d => d.id === "drv_papa") || { name: "ארז (אבא)", phone: "052-123-4567" };
+    const mother = drivers.find(d => d.id === "drv_mama") || { name: "מיכל (אמא)", phone: "054-987-6543" };
+
+    const formatPhoneForWa = (phone: string) => {
+      let phoneNum = phone.replace(/[^0-9]/g, "");
+      if (phoneNum.startsWith("0")) {
+        phoneNum = "972" + phoneNum.substring(1);
+      }
+      return phoneNum;
+    };
+
+    const text = `🚨 *דיווח חירום / עדכון דחוף מסהרון* 🚨\n\n*סוג העדכון:* ${
+      urgentReportType === "cancel" ? "🔴 ביטול הסעה קיימת" : "🟡 שינוי דחוף של הרגע האחרון"
+    }\n*יום:* יום ${finalDay}\n*שעה:* ${finalTime}\n*עבור הילדים:* ${finalChild}\n*סיבה / עדכון:* ${urgentReportReason}\n\nהדיווח מעודכן כעת בלוח הבקרה! 🚗💨`;
+
+    const fatherUrl = `https://api.whatsapp.com/send?phone=${formatPhoneForWa(father.phone)}&text=${encodeURIComponent(text)}`;
+    const motherUrl = `https://api.whatsapp.com/send?phone=${formatPhoneForWa(mother.phone)}&text=${encodeURIComponent(text)}`;
+
+    setUrgentReportSuccessMsg({
+      fatherUrl,
+      motherUrl,
+      fatherName: father.name,
+      motherName: mother.name,
+      fatherSent: false,
+      motherSent: false,
+    });
   };
 
   // שליפת כל האיסופים הרלוונטיים ליום וילד ספציפיים (שלא תהיה הגבלה יומית)
@@ -382,14 +428,14 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   return (
     <div className="space-y-6" id="scheduling_dashboard_module">
       {/* כפתור דיווח מהיר על שינויים עליון */}
-      {userRole === "parent" && (
+      {(userRole === "parent" || userRole === "driver") && (
         <div className="flex flex-wrap items-center justify-between gap-4 bg-[#FFD4D4] border-4 border-[#141414] tech-shadow p-5 flex-row-reverse text-right">
           <div className="space-y-1">
             <h4 className="text-sm font-black text-red-900 flex items-center gap-1.5 justify-end flex-row-reverse uppercase">
               <ShieldAlert className="w-4 h-4 text-red-700 animate-pulse" />
-              <span>עמדת עדכונים ושינויי הסעות של הרגע האחרון / EMERGENCY URGENT DISPATCH</span>
+              <span className="hidden sm:inline">עמדת עדכונים ושינויי הסעות של הרגע האחרון / EMERGENCY URGENT DISPATCH</span>
             </h4>
-            <p className="text-xs text-red-955 font-bold">كل שינוי או ביטול כאן מעדכן מיידית את המערכת ושולח דוח התראות להורים ולנהגים</p>
+            <p className="hidden sm:block text-xs text-red-955 font-bold">كل שינוי או ביטול כאן מעדכן מיידית את המערכת ושולח דוח התראות להורים ולנהגים</p>
           </div>
           <button
             onClick={() => setIsUrgentReporterOpen(true)}
@@ -408,8 +454,8 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
           <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-[#141414] text-[#E4E3E0] px-2 py-0.5 border border-[#141414]">
             לוח בקרה שבועי / WEEKLY CONTROL GRID
           </span>
-          <h2 className="text-2xl font-black text-[#141414] mt-1 font-serif uppercase italic">תוכנית האיסופים השבועית</h2>
-          <p className="text-xs text-slate-700 mt-1 font-mono">מפגש שבועי המפצל את ההסעות לפי 3 הילדים. כחול = קבוע, כתום/אדום = דחוף.</p>
+          <h2 className="hidden sm:block text-2xl font-black text-[#141414] mt-1 font-serif uppercase italic">תוכנית האיסופים השבועית</h2>
+          <p className="hidden sm:block text-xs text-slate-700 mt-1 font-mono">מפגש שבועי המפצל את ההסעות לפי 3 הילדים. כחול = קבוע, כתום/אדום = דחוף.</p>
         </div>
 
         {/* טאבים על ימים במובייל / סינונים */}
@@ -438,7 +484,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
               <Sparkles className="w-4 h-4 text-indigo-600 animate-bounce" />
               <span>מצב סינון לוח שבועי / WEEKLY CONTROL MODE</span>
             </h4>
-            <p className="text-xs text-slate-700 font-medium">כנהג משפחתי פעיל, באפשרותך לסנן את הלוח כדי להתרכז רק במשימות שלך השבוע, או לצפות בכלל נסיעות הבית.</p>
+            <p className="hidden sm:block text-xs text-slate-700 font-medium">כנהג משפחתי פעיל, באפשרותך לסנן את הלוח כדי להתרכז רק במשימות שלך השבוע, או לצפות בכלל נסיעות הבית.</p>
           </div>
           <div className="flex bg-white border-2 border-[#141414] p-1 shadow-[2px_2px_0_0_#141414] shrink-0 select-none">
             <button
@@ -469,9 +515,9 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         <div className="bg-amber-50 border-4 border border-[#141414] border-t-0 p-4 flex flex-col sm:flex-row justify-between items-center gap-4 text-right shadow-[3px_3px_0_0_#141414]" style={{ direction: "rtl" }}>
           <div className="space-y-1">
             <h5 className="text-xs font-bold text-amber-950 flex items-center gap-1 flex-row-reverse">
-              <span>📅 סנכרון ונוחות מובייל / LOCAL CALENDAR & SHARE</span>
+              <span className="hidden sm:inline">📅 סנכרון ונוחות מובייל / LOCAL CALENDAR & SHARE</span>
             </h5>
-            <p className="text-[11px] text-amber-950/80 leading-relaxed">באפשרותך לייצא את הנסיעות השבועות שלך ישירות ליומן המקומי במכשיר הנייד (כמו Google Calendar או Apple Calendar) או לשתף את כל הלוח שלך בקבוצה המשפחתית בוואטסאפ.</p>
+            <p className="hidden sm:block text-[11px] text-amber-950/80 leading-relaxed">באפשרותך לייצא את הנסיעות השבועות שלך ישירות ליומן המקומי במכשיר הנייד (כמו Google Calendar או Apple Calendar) או לשתף את כל הלוח שלך בקבוצה המשפחתית בוואטסאפ.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
             <button
@@ -876,12 +922,15 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       <AnimatePresence>
         {isUrgentReporterOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-[#141414]/85" onClick={() => setIsUrgentReporterOpen(false)} />
+            <div className="fixed inset-0 bg-[#141414]/85" onClick={() => {
+              setIsUrgentReporterOpen(false);
+              setUrgentReportSuccessMsg(null);
+            }} />
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#E4E3E0] border-4 border-[#141414] p-6 max-w-md w-full tech-shadow z-10 text-right overflow-hidden relative text-[#141414] font-mono"
+              className="bg-[#E4E3E0] border-4 border-[#141414] p-6 max-w-md w-full tech-shadow z-10 text-right overflow-y-auto max-h-[90vh] text-[#141414] font-mono relative"
               id="urgent_reporter_modal"
             >
               <div className="flex justify-between items-center mb-4 flex-row-reverse border-b-2 border-[#141414] pb-2">
@@ -891,111 +940,237 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setIsUrgentReporterOpen(false)}
-                  className="text-slate-700 hover:text-black"
+                  onClick={() => {
+                    setIsUrgentReporterOpen(false);
+                    setUrgentReportSuccessMsg(null);
+                  }}
+                  className="text-slate-700 hover:text-black cursor-pointer"
                 >
                   <HelpCircle className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleUrgentReportSubmit} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-[#141414] block">סוג הדיווח</label>
-                  <div className="grid grid-cols-2 gap-2 flex-row-reverse">
+              {urgentReportSuccessMsg ? (
+                <div className="space-y-5 text-center py-2">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-emerald-600">
+                      <CheckCircle className="w-8 h-8 text-emerald-600" />
+                    </div>
+                    <h4 className="font-black text-emerald-800 text-sm sm:text-base">הדיווח עודכן וסונכרן בהצלחה!</h4>
+                    <p className="text-xs text-slate-700 max-w-sm mx-auto leading-relaxed">
+                      השינוי נרשם במערכת ונשלחה התראה להורים.
+                      <br />
+                      <strong className="text-red-700">כעת יש לשלוח הודעת ווטסאפ ישירה לשני ההורים בקליק:</strong>
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    {/* אמא - מיכל */}
+                    <div className="bg-white p-3 border-2 border-[#141414] tech-shadow flex flex-col items-stretch text-right gap-2">
+                      <div className="flex justify-between items-center flex-row-reverse">
+                        <span className="text-xs font-black text-slate-800">עדכון אמא: {urgentReportSuccessMsg.motherName}</span>
+                        <span className="text-[10px] bg-slate-100 px-1 border border-slate-400 font-mono text-slate-600">נייד רשום</span>
+                      </div>
+                      <a
+                        href={urgentReportSuccessMsg.motherUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => {
+                          setUrgentReportSuccessMsg(prev => prev ? { ...prev, motherSent: true } : null);
+                        }}
+                        className={`w-full py-2 border-2 border-[#141414] text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                          urgentReportSuccessMsg.motherSent
+                            ? "bg-slate-200 text-slate-600 shadow-none border-slate-300"
+                            : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-[2px_2px_0_0_#141414] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5"
+                        }`}
+                      >
+                        <MessageSquare className="w-4 h-4 text-white" />
+                        <span>{urgentReportSuccessMsg.motherSent ? "נשלח בהצלחה ✅ (שלח שוב)" : "שלח הודעת WhatsApp"}</span>
+                      </a>
+                    </div>
+
+                    {/* אבא - ארז */}
+                    <div className="bg-white p-3 border-2 border-[#141414] tech-shadow flex flex-col items-stretch text-right gap-2">
+                      <div className="flex justify-between items-center flex-row-reverse">
+                        <span className="text-xs font-black text-slate-800">עדכון אבא: {urgentReportSuccessMsg.fatherName}</span>
+                        <span className="text-[10px] bg-slate-100 px-1 border border-slate-400 font-mono text-slate-600">נייד רשום</span>
+                      </div>
+                      <a
+                        href={urgentReportSuccessMsg.fatherUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => {
+                          setUrgentReportSuccessMsg(prev => prev ? { ...prev, fatherSent: true } : null);
+                        }}
+                        className={`w-full py-2 border-2 border-[#141414] text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                          urgentReportSuccessMsg.fatherSent
+                            ? "bg-slate-200 text-slate-600 shadow-none border-slate-300"
+                            : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-[2px_2px_0_0_#141414] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5"
+                        }`}
+                      >
+                        <MessageSquare className="w-4 h-4 text-white" />
+                        <span>{urgentReportSuccessMsg.fatherSent ? "נשלח בהצלחה ✅ (שלח שוב)" : "שלח הודעת WhatsApp"}</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-[#141414] flex justify-center">
                     <button
                       type="button"
-                      onClick={() => setUrgentReportType("change")}
-                      className={`text-xs py-2 px-3 border-2 font-bold ${
-                        urgentReportType === "change"
-                          ? "bg-[#141414] text-white border-[#141414]"
-                          : "bg-white border-[#141414] text-slate-700 hover:bg-slate-50"
-                      }`}
+                      onClick={() => {
+                        setIsUrgentReporterOpen(false);
+                        setUrgentReportSuccessMsg(null);
+                        setUrgentReportReason("");
+                        setSelectedUrgentPickupId("");
+                      }}
+                      className="px-6 py-2.5 bg-[#141414] text-white hover:bg-white hover:text-[#141414] border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none"
                     >
-                      שינוי דחוף של הרגע האחרון
+                      סיום וסגירה / DONE
                     </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleUrgentReportSubmit} className="space-y-4">
+                  {/* תיבת בחירת נסיעה קיימת (dropdown filter) */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center flex-row-reverse pb-1">
+                      <label className="text-xs font-bold text-slate-800">בחירת נסיעה מהלוח השבועי</label>
+                      <span className="text-[10px] text-red-600 font-extrabold bg-red-100 border border-red-300 px-1.5 py-0.5">
+                        {userRole === "driver" ? "הסעות שלך" : "כלל הסעות השבוע"}
+                      </span>
+                    </div>
+                    <select
+                      value={selectedUrgentPickupId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedUrgentPickupId(val);
+                        const match = pickups.find(p => p.id === val);
+                        if (match) {
+                          setUrgentReportChild(match.childName);
+                          setUrgentReportDay(match.day);
+                          setUrgentReportTime(match.time);
+                        }
+                      }}
+                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-right focus:outline-none focus:border-red-600 font-sans"
+                    >
+                      <option value="">-- בחרו נסיעה מהלוח או השאירו מדויק ידני --</option>
+                      {(userRole === "driver" && activeDriverId
+                        ? pickups.filter(p => p.driverId === activeDriverId)
+                        : pickups
+                      ).map((p) => {
+                        const drv = drivers.find(d => d.id === p.driverId);
+                        return (
+                          <option key={p.id} value={p.id}>
+                            יום {p.day} | {p.time} | {p.childName} ({drv ? drv.name : "טרם נקבע"})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[#141414] block">סוג הדיווח</label>
+                    <div className="grid grid-cols-2 gap-2 flex-row-reverse">
+                      <button
+                        type="button"
+                        onClick={() => setUrgentReportType("change")}
+                        className={`text-xs py-2 px-3 border-2 font-bold cursor-pointer transition-all ${
+                          urgentReportType === "change"
+                            ? "bg-[#141414] text-white border-[#141414]"
+                            : "bg-white border-[#141414] text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        שינוי דחוף של הרגע האחרון
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUrgentReportType("cancel")}
+                        className={`text-xs py-2 px-3 border-2 font-bold cursor-pointer transition-all ${
+                          urgentReportType === "cancel"
+                            ? "bg-red-600 text-white border-[#141414]"
+                            : "bg-white border-[#141414] text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        ביטול הסעה קיימת
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-800">עבור הילד/ה</label>
+                      <select
+                        value={urgentReportChild}
+                        onChange={(e) => setUrgentReportChild(e.target.value)}
+                        className="w-full text-xs px-2 py-2 border-2 border-[#141414] bg-white text-right focus:outline-none"
+                      >
+                        {DEFAULT_CHILDREN.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-800">היום</label>
+                      <select
+                        value={urgentReportDay}
+                        onChange={(e) => setUrgentReportDay(e.target.value)}
+                        className="w-full text-xs px-2 py-2 border-2 border-[#141414] bg-white text-right focus:outline-none"
+                      >
+                        {DAYS_OF_WEEK.map((d) => (
+                          <option key={d} value={d}>
+                            יום {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800 block">לפי שעה משוערכת</label>
+                    <input
+                      type="time"
+                      value={urgentReportTime}
+                      onChange={(e) => setUrgentReportTime(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white font-mono text-left focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800 block">סיבה או עדכון (יופיע בהתראה וב-WA)</label>
+                    <textarea
+                      required
+                      rows={3}
+                      placeholder="למשל: נתקעתי בפקק, מעבירים נסיעה לסבתא..."
+                      value={urgentReportReason}
+                      onChange={(e) => setUrgentReportReason(e.target.value)}
+                      className="w-full text-xs p-2.5 border-2 border-[#141414] bg-white text-right resize-none focus:outline-none focus:border-red-600"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => setUrgentReportType("cancel")}
-                      className={`text-xs py-2 px-3 border-2 font-bold ${
-                        urgentReportType === "cancel"
-                          ? "bg-red-600 text-white border-[#141414]"
-                          : "bg-white border-[#141414] text-slate-700 hover:bg-slate-50"
-                      }`}
+                      onClick={() => {
+                        setIsUrgentReporterOpen(false);
+                        setUrgentReportSuccessMsg(null);
+                        setUrgentReportReason("");
+                        setSelectedUrgentPickupId("");
+                      }}
+                      className="px-3.5 py-2 border-2 border-[#141414] bg-[#D1D0CC] text-[#141414] hover:bg-slate-350 text-xs font-bold cursor-pointer"
                     >
-                      ביטול הסעה קיימת
+                      ביטול / CANCEL
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 border-2 border-[#141414] bg-red-600 hover:bg-black text-white font-black text-xs cursor-pointer shadow-[2px_2px_0_0_#141414] transition-all"
+                    >
+                      שלח התראת חירום וסנכרן
                     </button>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-800">עבור הילד/ה</label>
-                    <select
-                      value={urgentReportChild}
-                      onChange={(e) => setUrgentReportChild(e.target.value)}
-                      className="w-full text-xs px-2 py-2 border-2 border-[#141414] bg-white text-right focus:outline-none"
-                    >
-                      {DEFAULT_CHILDREN.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-800">היום</label>
-                    <select
-                      value={urgentReportDay}
-                      onChange={(e) => setUrgentReportDay(e.target.value)}
-                      className="w-full text-xs px-2 py-2 border-2 border-[#141414] bg-white text-right focus:outline-none"
-                    >
-                      {DAYS_OF_WEEK.map((d) => (
-                        <option key={d} value={d}>
-                          יום {d}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800 block">לפי שעה משוערכת</label>
-                  <input
-                    type="time"
-                    value={urgentReportTime}
-                    onChange={(e) => setUrgentReportTime(e.target.value)}
-                    className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white font-mono text-left focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800 block">סיבה או עדכון (יופיע בהתראה)</label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="למשל: נתקעתי בפקק, מעבירים נסיעה לסבתא..."
-                    value={urgentReportReason}
-                    onChange={(e) => setUrgentReportReason(e.target.value)}
-                    className="w-full text-xs p-2.5 border-2 border-[#141414] bg-white text-right resize-none focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsUrgentReporterOpen(false)}
-                    className="px-3.5 py-2 border-2 border-[#141414] bg-[#D1D0CC] text-[#141414] hover:bg-slate-350 text-xs font-bold cursor-pointer"
-                  >
-                    סגור / CLOSE
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 border-2 border-[#141414] bg-red-600 hover:bg-black text-white font-black text-xs cursor-pointer shadow-[2px_2px_0_0_#141414]"
-                  >
-                    שלח התראת חירום וסנכרן
-                  </button>
-                </div>
-              </form>
+                </form>
+              )}
             </motion.div>
           </div>
         )}
