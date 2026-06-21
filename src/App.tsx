@@ -64,8 +64,8 @@ export default function App() {
 
   // פונקציית מעבר בורר תפקידים חכמה
   const handleRoleChange = (targetRole: "parent" | "driver" | "child") => {
-    if (userRole === "child" && targetRole !== "child") {
-      // ניסיון לביטול או מעבר ממצב ילדים דורש סיסמת הורים (PIN)
+    if ((targetRole === "parent" && userRole !== "parent") || (userRole === "child" && targetRole !== "child")) {
+      // ניסיון מעבר לתפקיד הורים, או יציאה ממצב ילדים דורש סיסמת הורים (PIN)
       setPendingTargetRole(targetRole);
       setPinInput("");
       setPinError("");
@@ -75,7 +75,7 @@ export default function App() {
     }
   };
 
-  // אישור קוד הורים בנעילת בטיחות ילדים
+  // אישור קוד הורים בנעילת בטיחות ילדים ובקרת גישה
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
     if (pinInput === "1234") {
@@ -83,7 +83,7 @@ export default function App() {
         setUserRole(pendingTargetRole);
         StorageEngine.addLog(
           "בקרת הורים",
-          `בוצע מעבר מאושר ממצב ילדים לממשק ${pendingTargetRole === "parent" ? "מנהל/הורים" : "נהגים"}.`,
+          `בוצע מעבר מאושר לממשק ${pendingTargetRole === "parent" ? "מנהל/הורים" : pendingTargetRole === "driver" ? "נהגים" : "ילדים"}.`,
           "parent"
         );
       }
@@ -91,7 +91,7 @@ export default function App() {
       setPinInput("");
       setPinError("");
     } else {
-      setPinError("קוד שגוי! אנא נסו שוב (ברירת מחדל: 1234)");
+      setPinError("קוד שגוי! אנא נסו שוב");
     }
   };
 
@@ -112,11 +112,11 @@ export default function App() {
                   {userRole === "parent" ? "● מנהל/הורים" : userRole === "driver" ? "● ממשק נהג" : "● תצוגת ילדים"}
                 </span>
                 <span className={`text-[9px] px-1.5 py-0.5 font-mono font-black border uppercase tracking-wider ${
-                  import.meta.env.PROD
+                  (import.meta as any).env?.PROD
                     ? "bg-emerald-600 text-white border-emerald-950"
                     : "bg-amber-100 text-amber-950 border-amber-500 animate-pulse"
                 }`}>
-                  {import.meta.env.PROD ? "PROD (PRODUCTION)" : "DEV (PLAYGROUND)"}
+                  {(import.meta as any).env?.PROD ? "PROD (PRODUCTION)" : "DEV (PLAYGROUND)"}
                 </span>
               </h1>
               <p className="text-[10px] text-slate-700 font-mono tracking-wider uppercase">מערך הסעות משפחתי מעודכן בזמן אמת</p>
@@ -349,9 +349,6 @@ export default function App() {
                       ⚠️ {pinError}
                     </p>
                   )}
-                  <p className="text-[10px] text-slate-500 italic mt-1.5">
-                    * קוד ברירת המחדל הבטוח של סהרון הוא: <strong>1234</strong>
-                  </p>
                 </div>
 
                 <div className="flex gap-2 justify-start pt-2 flex-row-reverse">
