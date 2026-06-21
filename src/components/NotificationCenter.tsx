@@ -9,10 +9,36 @@ import { StorageEngine, subscribeToStore } from "../data";
 import { Bell, BellRing, Check, ShieldAlert, CheckCircle2, Info, X, MessageSquareCode } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-export default function NotificationCenter() {
+interface NotificationCenterProps {
+  userRole?: "parent" | "driver" | "child";
+  activeDriverId?: string | null;
+}
+
+export default function NotificationCenter({ userRole = "parent", activeDriverId = null }: NotificationCenterProps) {
   const [alerts, setAlerts] = useState<AlertNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [toast, setToast] = useState<AlertNotification | null>(null);
+
+  const currentDriver = activeDriverId ? StorageEngine.getDrivers().find((d) => d.id === activeDriverId) : null;
+  const currentDriverName = currentDriver ? currentDriver.name.split(" ")[0] : "";
+
+  // סינון ההתראות לפי התפקיד והנהג הפעיל
+  const displayAlerts = alerts.filter((a) => {
+    if (userRole === "parent") return true;
+    if (userRole === "child") return false; // ילדים לא רואים התראות הורים
+    if (userRole === "driver") {
+      if (!currentDriverName) return false;
+      const content = (a.title + " " + a.message).toLowerCase();
+      return (
+        content.includes(currentDriverName.toLowerCase()) ||
+        content.includes("נהג") ||
+        content.includes("לכולם") ||
+        content.includes("כללי") ||
+        (currentDriver?.phone && content.includes(currentDriver.phone))
+      );
+    }
+    return true;
+  });
 
   useEffect(() => {
     // טעינת נתונים ראשונית
@@ -28,30 +54,51 @@ export default function NotificationCenter() {
         const latest = updated[0];
         const isNew = !latest.read && (!toast || toast.id !== latest.id);
         if (isNew) {
-          setToast(latest);
-          // השמעת צליל חלש ומודרני (אופציונלי אך נחמד ל-חוויה, נשתמש ב-Vibe ויזואלי)
-          setTimeout(() => {
-            setToast((curr) => (curr && curr.id === latest.id ? null : curr));
-          }, 6000);
+          // בדוק אם ההתראה החדשה רלוונטית למשתמש הנוכחי
+          const isRelevantToMe =
+            userRole === "parent" ||
+            (userRole === "driver" &&
+              currentDriverName &&
+              (latest.title + " " + latest.message).toLowerCase().includes(currentDriverName.toLowerCase()));
+
+          if (isRelevantToMe) {
+            setToast(latest);
+            setTimeout(() => {
+              setToast((curr) => (curr && curr.id === latest.id ? null : curr));
+            }, 6000);
+          }
         }
       }
     });
 
     return unsubscribe;
-  }, [toast]);
+  }, [toast, userRole, activeDriverId, currentDriverName]);
 
   const markAllAsRead = () => {
-    const updated = alerts.map((a) => ({ ...a, read: true }));
+    const visibleIds = displayAlerts.map((da) => da.id);
+    const updated = alerts.map((a) => (visibleIds.includes(a.id) ? { ...a, read: true } : a));
     StorageEngine.saveAlerts(updated);
-    StorageEngine.addLog("התראות", "כל ההתראות סומנו כנקראו", "parent");
+    StorageEngine.addLog("התראות", "סומנו כנקראו על ידי נהגאו הורה", userRole === "child" ? "child" : "parent");
   };
 
   const clearAlerts = () => {
-    StorageEngine.saveAlerts([]);
-    StorageEngine.addLog("התראות", "יומן ההתראות נוקה", "parent");
+    if (userRole === "parent") {
+      StorageEngine.saveAlerts([]);
+      StorageEngine.addLog("התראות", "יומן ההתראות נוקה", "parent");
+    } else {
+      // נהג מוחק רק את שלו
+      const visibleIds = displayAlerts.map((da) => da.id);
+      const updated = alerts.filter((a) => !visibleIds.includes(a.id));
+      StorageEngine.saveAlerts(updated);
+    }
   };
 
-  const unreadCount = alerts.filter((a) => !a.read).length;
+  const unreadCount = displayAlerts.filter((a) => !a.read).length;
+
+  // אם המשתמש הוא ילד, הוא לא רואה בכלל את האייקון של זמזום ההתראות
+  if (userRole === "child") {
+    return null;
+  }
 
   return (
     <div className="relative" id="notification_center_module">
@@ -65,7 +112,7 @@ export default function NotificationCenter() {
         {unreadCount > 0 ? (
           <>
             <BellRing className="w-6 h-6 text-indigo-600 animate-swing" />
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/3 -translate-y-1/3 bg-rose-500 rounded-full">
+            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-rose-500 rounded-full">
               {unreadCount}
             </span>
           </>
@@ -88,7 +135,9 @@ export default function NotificationCenter() {
             >
               <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center flex-row-reverse">
                 <div className="flex items-center gap-2 flex-row-reverse">
-                  <span className="font-semibold text-slate-800 text-base">מרכז התראות הורים</span>
+                  <span className="font-semibold text-slate-800 text-base">
+                    {userRole === "parent" ? "מרכז התראות הורים" : `התראות עבור: ${currentDriver?.name || ""}`}
+                  </span>
                   {unreadCount > 0 && (
                     <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-medium">
                       {unreadCount} חדשות
@@ -101,29 +150,29 @@ export default function NotificationCenter() {
                       onClick={markAllAsRead}
                       className="text-xs text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
                     >
-                      סמן הכל כנקרא
+                      סמן כנקרא
                     </button>
                   )}
-                  {alerts.length > 0 && (
+                  {displayAlerts.length > 0 && (
                     <button
                       onClick={clearAlerts}
                       className="text-xs text-slate-400 hover:text-slate-600 font-medium cursor-pointer mr-2 border-r pr-2 border-slate-200"
                     >
-                      נקה הכל
+                      נקה
                     </button>
                   )}
                 </div>
               </div>
 
               <div className="max-h-[350px] overflow-y-auto divide-y divide-slate-50">
-                {alerts.length === 0 ? (
+                {displayAlerts.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
                     <CheckCircle2 className="w-8 h-8 text-slate-300" />
                     <p className="text-sm">הכל שקט ומעודכן בזמן אמת</p>
-                    <p className="text-xs text-slate-300">שינויים בלו״ז יקפצו כאן מיידית לשני ההורים</p>
+                    <p className="text-xs text-slate-300">שינויים רלוונטיים יקפצו כאן מיידית</p>
                   </div>
                 ) : (
-                  alerts.map((item) => (
+                  displayAlerts.map((item) => (
                     <div
                       key={item.id}
                       className={`p-3.5 transition-colors duration-150 ${item.read ? "bg-white" : "bg-indigo-50/40"}`}
@@ -153,7 +202,7 @@ export default function NotificationCenter() {
                             <span>•</span>
                             <span className="flex items-center gap-1">
                               <MessageSquareCode className="w-3 h-3 text-emerald-500" />
-                              נשלח SMS להורים ולנהג
+                              סנכרון פעיל
                             </span>
                           </div>
                         </div>
