@@ -9,6 +9,42 @@ import { StorageEngine, subscribeToStore } from "../data";
 import { Bell, BellRing, Check, ShieldAlert, CheckCircle2, Info, X, MessageSquareCode } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
+// פונקציה לייצור צליל התראה דיגיטלי נעים ללא תלות בקבצי שמע חיצוניים
+const playNotificationChime = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+    
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    osc1.type = "sine";
+    osc2.type = "sine";
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.12, now + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    
+    osc1.frequency.setValueAtTime(659.25, now); // Tone E5
+    osc2.frequency.setValueAtTime(987.77, now + 0.08); // Tone B5
+    
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    osc1.start(now);
+    osc2.start(now + 0.08);
+    
+    osc1.stop(now + 0.5);
+    osc2.stop(now + 0.5);
+  } catch (e) {
+    console.warn("Audio chime failed to play:", e);
+  }
+};
+
 interface NotificationCenterProps {
   userRole?: "parent" | "driver" | "child";
   activeDriverId?: string | null;
@@ -16,6 +52,7 @@ interface NotificationCenterProps {
 
 export default function NotificationCenter({ userRole = "parent", activeDriverId = null }: NotificationCenterProps) {
   const [alerts, setAlerts] = useState<AlertNotification[]>([]);
+  const isIframe = typeof window !== "undefined" && window.self !== window.top;
   const [isOpen, setIsOpen] = useState(false);
   const [toast, setToast] = useState<AlertNotification | null>(null);
 
@@ -104,20 +141,18 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
           if (isRelevantToMe) {
             setToast(latest);
 
+            // הפעלת צליל חיווי חביב כגיבוי בטוח (חצי-מכני נקי)
+            playNotificationChime();
+
             // הפעלת התראת דפדפן (Browser Notification)
             if (typeof window !== "undefined" && "Notification" in window) {
               try {
                 if (Notification.permission === "granted") {
-                  const isUrgent = latest.type === "urgent" || latest.title.includes("דחוף") || latest.message.includes("דחוף");
-                  const isStatusChange = latest.title.includes("סטטוס") || latest.message.includes("סומן") || latest.message.includes("שונה לסטטוס") || latest.message.includes("נאסף");
-
-                  if (isUrgent || isStatusChange) {
-                    new Notification(latest.title, {
-                      body: latest.message,
-                      icon: "/favicon.ico",
-                      tag: latest.id,
-                    });
-                  }
+                  new Notification(latest.title, {
+                    body: latest.message,
+                    icon: "/favicon.ico",
+                    tag: latest.id,
+                  });
                 }
               } catch (e) {
                 console.error("Could not dispatch browser notification", e);
@@ -248,6 +283,13 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
                   </button>
                 )}
               </div>
+
+              {isIframe && (
+                <div className="px-4 py-2 bg-amber-50 text-[10px] text-amber-950 border-b border-amber-200 text-right leading-relaxed font-sans font-medium">
+                  ⚠️ <strong>חסימת iFrame פעילה בדפדפן:</strong> כרגע האתר מוצג בתוך סביבת פיתוח מוגנת (פריוויו). לקבלת התראות דפדפן מערכתיות (Push Context), פתחו את האתר בטאב חדש באמצעות קישור הפיתוח או השיתוף הישרים למעלה. <br />
+                  <span className="text-indigo-900 font-semibold">💡 כגיבוי, צליל התראה מלודי מופעל כעת אוטומטית בכל שינוי!</span>
+                </div>
+              )}
 
               <div className="max-h-[350px] overflow-y-auto divide-y divide-slate-50">
                 {displayAlerts.length === 0 ? (

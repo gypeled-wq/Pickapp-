@@ -18,6 +18,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDayTab, setSelectedDayTab] = useState("ראשון"); // For mobile day tabs
+  const [driverFilter, setDriverFilter] = useState<"only-mine" | "all">("only-mine"); // For driver focus view
 
   // מודאל עריכה
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -73,6 +74,136 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       ? `https://api.whatsapp.com/send?phone=${phoneNum}&text=${encodeURIComponent(text)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     
+    window.open(url, "_blank");
+  };
+
+  // קבלת תאריך עבור יום בשבוע בשביל קובץ הלוח (iCal / ICS)
+  const getDayDate = (dayHebrew: string): Date => {
+    const dayMap: { [key: string]: number } = {
+      "ראשון": 0,
+      "שני": 1,
+      "שלישי": 2,
+      "רביעי": 3,
+      "חמישי": 4,
+      "שישי": 5,
+      "שבת": 6
+    };
+    const order = dayMap[dayHebrew] ?? 0;
+    // שבוע הנוכחי מתחיל ב-21 ליוני 2026 (יום ראשון)
+    const baseDate = new Date("2026-06-21T00:00:00");
+    const targetDate = new Date(baseDate);
+    targetDate.setDate(baseDate.getDate() + order);
+    return targetDate;
+  };
+
+  // ייצוא כל נסיעות השבוע של הנהג לקובץ לוח שנה iCal (.ics) תקני המסתנכרן עם כל מכשיר מקומי
+  const exportDriverCalendar = (driverId: string) => {
+    const driverObj = drivers.find(d => d.id === driverId);
+    if (!driverObj) return;
+
+    const myPickups = pickups.filter(p => p.driverId === driverId);
+    if (myPickups.length === 0) {
+      alert("אין לך נסיעות משויכות השבוע לייצוא ליומן!");
+      return;
+    }
+
+    let icsContent = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Saharoon Kid Sync//HE",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      `X-WR-CALNAME:הסעות סהרון - ${driverObj.name}`,
+      "X-WR-TIMEZONE:Asia/Jerusalem"
+    ];
+
+    const pad = (num: number) => num.toString().padStart(2, "0");
+
+    myPickups.forEach(p => {
+      const date = getDayDate(p.day);
+      const [hours, minutes] = p.time.split(":").map(Number);
+      
+      const startDate = new Date(date);
+      startDate.setHours(hours || 0, minutes || 0, 0, 0);
+      
+      const endDate = new Date(date);
+      endDate.setHours(hours || 0, (minutes || 0) + 45, 0, 0); // נניח 45 דק לכל נסיעה
+
+      const formatICSDate = (d: Date) => {
+        const yyyy = d.getFullYear();
+        const mm = pad(d.getMonth() + 1);
+        const dd = pad(d.getDate());
+        const h = pad(d.getHours());
+        const min = pad(d.getMinutes());
+        return `${yyyy}${mm}${dd}T${h}${min}00`;
+      };
+
+      const startStr = formatICSDate(startDate);
+      const endStr = formatICSDate(endDate);
+
+      const summary = `סהרון: איסוף ${p.childName}`;
+      const description = `יום ${p.day} בשעה ${p.time}. ילדים: ${p.childName}. נהג: ${driverObj.name}.${p.notes ? ' הערות: ' + p.notes : ''}`;
+
+      icsContent.push(
+        "BEGIN:VEVENT",
+        `UID:pickup_${p.id}_2026_${Math.random().toString(36).substring(2, 7)}@saharon.kids`,
+        `DTSTART;TZID=Asia/Jerusalem:${startStr}`,
+        `DTEND;TZID=Asia/Jerusalem:${endStr}`,
+        `SUMMARY:${summary}`,
+        `DESCRIPTION:${description}`,
+        "STATUS:CONFIRMED",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT30M", // תזכורת 30 דקות לפני
+        "ACTION:DISPLAY",
+        `DESCRIPTION:תזכורת: ${summary}`,
+        "END:VALARM",
+        "END:VEVENT"
+      );
+    });
+
+    icsContent.push("END:VCALENDAR");
+
+    try {
+      const blob = new Blob([icsContent.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `saharon_schedule_${driverObj.name.replace(/\s+/g, "_")}.ics`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error("iCal export failed", e);
+    }
+  };
+
+  // שיתוף הלוח השבועי המלא של הנהג בוואטסאפ בקלות
+  const shareDriverWeeklySchedule = (driverId: string) => {
+    const driverObj = drivers.find(d => d.id === driverId);
+    if (!driverObj) return;
+
+    const myPickups = pickups.filter(p => p.driverId === driverId);
+    if (myPickups.length === 0) {
+      alert("אין לך נסיעות משויכות השבוע לשיתוף!");
+      return;
+    }
+
+    let text = `🚗 *לוח ההסעות השבועי שלי (${driverObj.name})* 🚗\n\n`;
+    
+    const dayOrder = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+    const sorted = [...myPickups].sort((a, b) => {
+      const diff = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+      if (diff !== 0) return diff;
+      return a.time.localeCompare(b.time);
+    });
+
+    sorted.forEach((p) => {
+      text += `📅 *יום ${p.day}* בשעה *${p.time}*\n👦🧒 *ילדים:* ${p.childName}\n${p.notes ? `💬 *הערות:* ${p.notes}\n` : ""}${p.completed ? "✅ סומן כנאסף\n" : "⏳ ממתין לאיסוף\n"}\n`;
+    });
+
+    text += `התעדכן בזמן אמת באפליקציית סהרון! 🚲🧡`;
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
   };
 
@@ -298,6 +429,67 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
           ))}
         </div>
       </div>
+
+      {/* פילטר ייחודי למצב נהג פעיל */}
+      {userRole === "driver" && activeDriverId && (
+        <div className="bg-[#E4E3E0] border-4 border-[#141414] p-4 flex flex-col md:flex-row justify-between items-center gap-4 text-right" style={{ direction: "rtl" }}>
+          <div className="space-y-1">
+            <h4 className="text-sm font-black text-[#141414] uppercase flex items-center gap-1.5 flex-row-reverse">
+              <Sparkles className="w-4 h-4 text-indigo-600 animate-bounce" />
+              <span>מצב סינון לוח שבועי / WEEKLY CONTROL MODE</span>
+            </h4>
+            <p className="text-xs text-slate-700 font-medium">כנהג משפחתי פעיל, באפשרותך לסנן את הלוח כדי להתרכז רק במשימות שלך השבוע, או לצפות בכלל נסיעות הבית.</p>
+          </div>
+          <div className="flex bg-white border-2 border-[#141414] p-1 shadow-[2px_2px_0_0_#141414] shrink-0 select-none">
+            <button
+              onClick={() => setDriverFilter("only-mine")}
+              className={`px-4 py-2 text-xs font-black transition-all cursor-pointer ${
+                driverFilter === "only-mine"
+                  ? "bg-[#141414] text-white"
+                  : "bg-white text-slate-700 hover:bg-[#F2F2EF]"
+              }`}
+            >
+              רק הנסיעות שלי השבוע 🚗
+            </button>
+            <button
+              onClick={() => setDriverFilter("all")}
+              className={`px-4 py-2 text-xs font-black transition-all border-r-2 border-[#141414] cursor-pointer ${
+                driverFilter === "all"
+                  ? "bg-[#141414] text-white"
+                  : "bg-white text-slate-700 hover:bg-[#F2F2EF]"
+              }`}
+            >
+              כל הנסיעות המשפחתיות 🌐
+            </button>
+          </div>
+        </div>
+      )}
+
+      {userRole === "driver" && activeDriverId && (
+        <div className="bg-amber-50 border-4 border border-[#141414] border-t-0 p-4 flex flex-col sm:flex-row justify-between items-center gap-4 text-right shadow-[3px_3px_0_0_#141414]" style={{ direction: "rtl" }}>
+          <div className="space-y-1">
+            <h5 className="text-xs font-bold text-amber-950 flex items-center gap-1 flex-row-reverse">
+              <span>📅 סנכרון ונוחות מובייל / LOCAL CALENDAR & SHARE</span>
+            </h5>
+            <p className="text-[11px] text-amber-950/80 leading-relaxed">באפשרותך לייצא את הנסיעות השבועות שלך ישירות ליומן המקומי במכשיר הנייד (כמו Google Calendar או Apple Calendar) או לשתף את כל הלוח שלך בקבוצה המשפחתית בוואטסאפ.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+            <button
+              onClick={() => exportDriverCalendar(activeDriverId)}
+              className="w-full sm:w-auto bg-[#141414] hover:bg-[#2e2e2c] text-white border-2 border-[#141414] px-4 py-2 text-xs font-black shadow-[2px_2px_0_0_#d1d0cc] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-row-reverse"
+            >
+              <span>יצא ליומן המקומי (iCal) 📥</span>
+            </button>
+            <button
+              onClick={() => shareDriverWeeklySchedule(activeDriverId)}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-[#141414] px-4 py-2 text-xs font-black shadow-[2px_2px_0_0_#141414] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer flex-row-reverse"
+            >
+              <span>שתף את כל הלוח בוואטסאפ 💬</span>
+            </button>
+          </div>
+        </div>
+      )}
+
          {/* תצוגת גריד מלאה לשולחן עבודה (RTL Desktop Grid) */}
       <div className="hidden md:block overflow-x-auto" id="desktop_weekly_grid">
         <table className="w-full text-right border-4 border-[#141414] border-collapse bg-white font-mono">
@@ -328,7 +520,12 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
                 {/* משבצות הילדים */}
                 {DEFAULT_CHILDREN.map((child) => {
-                  const items = getPickupsFor(day, child);
+                  let items = getPickupsFor(day, child);
+
+                  // סינון לנהג הנוכחי
+                  if (userRole === "driver" && activeDriverId && driverFilter === "only-mine") {
+                    items = items.filter(item => item.driverId === activeDriverId);
+                  }
 
                   return (
                     <td key={child} className="py-3 px-3 align-top border-l-2 border-[#141414] last:border-l-0">
@@ -509,7 +706,15 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         <h3 className="text-sm font-black text-[#141414] text-right uppercase border-r-4 border-[#141414] pr-2">הסעות ליום {selectedDayTab} / DAILY LOG:</h3>
         <div className="grid grid-cols-1 gap-4">
           {DEFAULT_CHILDREN.map((child) => {
-            const item = getPickupFor(selectedDayTab, child);
+            let item = getPickupFor(selectedDayTab, child);
+
+            // סינון במובייל לנהג הפעיל
+            if (item && userRole === "driver" && activeDriverId && driverFilter === "only-mine") {
+              if (item.driverId !== activeDriverId) {
+                item = undefined;
+              }
+            }
+
             const driver = item ? drivers.find((d) => d.id === item.driverId) : null;
 
             return (
@@ -605,6 +810,67 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
           })}
         </div>
       </div>
+
+      {/* רשימת שאר נסיעות המשפחה השבוע - להשפעת תיאום גמיש (מופיע רק במצב נהג פעיל שחוסך מקום) */}
+      {userRole === "driver" && activeDriverId && driverFilter === "only-mine" && (
+        <div className="bg-[#141414]/5 rounded-xl border-2 border-[#141414]/20 p-5 mt-4 space-y-3 font-mono" style={{ direction: "rtl" }}>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#141414]/15 pb-2">
+            <h4 className="text-sm font-black text-[#141414] text-right">
+              📅 נסיעות של נהגים אחרים השבוע / Other Drivers' Pickups
+            </h4>
+            <span className="text-[10px] font-bold text-slate-500 uppercase">
+              מידע בלבד (לצורך תיאום משפחתי)
+            </span>
+          </div>
+
+          {pickups.filter(p => p.driverId !== activeDriverId).length === 0 ? (
+            <p className="text-xs text-slate-500 italic text-center py-4">אין נסיעות שבועיות נוספות משויכות לנהגים אחרים.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {pickups
+                .filter(p => p.driverId !== activeDriverId)
+                .sort((a, b) => {
+                  const dayOrder = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+                  const dayDiff = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+                  if (dayDiff !== 0) return dayDiff;
+                  return a.time.localeCompare(b.time);
+                })
+                .map((pickup) => {
+                  const otherDriver = drivers.find(d => d.id === pickup.driverId);
+                  return (
+                    <div key={pickup.id} className="bg-white border border-[#141414] p-3 shadow-[1.5px_1.5px_0_0_#141414] text-right space-y-1.5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-center flex-row-reverse pb-1.5 border-b border-slate-100 mb-1.5">
+                          <span className="text-xs font-black text-black">יום {pickup.day}</span>
+                          <span className="text-[10px] bg-[#E4E3E0] px-1.5 py-0.5 border border-[#141414] font-bold">{pickup.time}</span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-900">ילדים: {pickup.childName}</p>
+                        <p className="text-xs text-slate-700">נהג/ת: {otherDriver ? otherDriver.name : "טרם נקבע"}</p>
+                        {pickup.notes && (
+                          <p className="text-[11px] text-slate-500 bg-[#F2F2EF] p-1.5 border-r-2 border-[#141414] mt-1.5 italic">
+                            💬 {pickup.notes}
+                          </p>
+                        )}
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 flex justify-between items-center flex-row-reverse mt-2">
+                        <span className={`text-[9px] px-1 border border-[#141414] font-bold uppercase ${
+                          pickup.completed ? "bg-emerald-100 text-emerald-900 font-bold" : "bg-amber-100 text-amber-900 font-bold"
+                        }`}>
+                          {pickup.completed ? "נאסף" : "פעיל"}
+                        </span>
+                        {otherDriver?.phone && (
+                          <a href={`tel:${otherDriver?.phone}`} className="text-[10px] text-indigo-700 hover:underline font-bold">
+                            📞 התקשר ל{otherDriver.name.split(" ")[0]}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* מודאל דיווח דחוף / ביטול (מנגנון התראה ומחיקה אוטומטי) */}
       <AnimatePresence>

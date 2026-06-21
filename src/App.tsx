@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Driver } from "./types";
 
 export default function App() {
-  const [userRole, setUserRole] = useState<"parent" | "driver" | "child">("parent");
+  const [userRole, setUserRole] = useState<"parent" | "driver" | "child">("driver");
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [activeDriverId, setActiveDriverId] = useState<string | null>(() => {
     return localStorage.getItem("kid_sync_active_driver_id") || "drv_shosh";
@@ -64,8 +64,8 @@ export default function App() {
 
   // פונקציית מעבר בורר תפקידים חכמה
   const handleRoleChange = (targetRole: "parent" | "driver" | "child") => {
-    if ((targetRole === "parent" && userRole !== "parent") || (userRole === "child" && targetRole !== "child")) {
-      // ניסיון מעבר לתפקיד הורים, או יציאה ממצב ילדים דורש סיסמת הורים (PIN)
+    // בקרת גישה קפדנית: כל מעבר מתפקיד אחד לאחר (הורה, נהג, ילד) דורש הזנת קוד בקרה מטעמי בטיחות ופרטיות
+    if (targetRole !== userRole) {
       setPendingTargetRole(targetRole);
       setPinInput("");
       setPinError("");
