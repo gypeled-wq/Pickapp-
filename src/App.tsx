@@ -15,7 +15,14 @@ import { motion, AnimatePresence } from "motion/react";
 import { Driver } from "./types";
 
 export default function App() {
-  const [userRole, setUserRole] = useState<"parent" | "driver" | "child">("driver");
+  const [userRole, setUserRole] = useState<"parent" | "driver" | "child">(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roleParam = params.get("role");
+    if (roleParam === "parent" || roleParam === "driver" || roleParam === "child") {
+      return roleParam as "parent" | "driver" | "child";
+    }
+    return "driver";
+  });
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [activeDriverId, setActiveDriverId] = useState<string | null>(() => {
     return localStorage.getItem("kid_sync_active_driver_id") || "drv_shosh";
@@ -27,11 +34,45 @@ export default function App() {
   const [pinError, setPinError] = useState("");
   const [pendingTargetRole, setPendingTargetRole] = useState<"parent" | "driver" | "child" | null>(null);
 
+  // PWA & התקנה למסך הבית
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallGuideOpen, setIsInstallGuideOpen] = useState(false);
+
   const [stats, setStats] = useState({
     totalPickups: 0,
     urgentPickups: 0,
     completedToday: 0,
   });
+
+  // החלפת ה-URL עם שינוי תפקיד כדי לשמור את המצב המדויק בהוספה למסך הבית
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("role", userRole);
+    window.history.replaceState({}, "", url.toString());
+  }, [userRole]);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleAddToHomeScreen = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setDeferredPrompt(null);
+      }
+    } else {
+      setIsInstallGuideOpen(true);
+    }
+  };
 
   useEffect(() => {
     const updateStatsAndDrivers = () => {
@@ -376,16 +417,78 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* כותרת תחתונה מעוצבת ונקיה */}
-      <footer className="mt-auto border-t-2 border-[#141414] bg-[#141414] text-[#E4E3E0] py-6 text-center font-mono">
-        <div className="max-w-7xl mx-auto px-4 text-xs space-y-1.5">
-          <div className="flex justify-center items-center gap-1.5 flex-row-reverse">
-            <span>המערכת מסונכרנת מקומית ובזמן אמת עבור מכשירים שונים</span>
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+      {/* מודאל מדריך הוספה למסך הבית */}
+      <AnimatePresence>
+        {isInstallGuideOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 font-mono" style={{ direction: "rtl" }}>
+            <div className="absolute inset-0 bg-transparent" onClick={() => setIsInstallGuideOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white border-4 border-[#141414] shadow-[8px_8px_0_0_#141414] max-w-sm w-full p-6 relative z-10 text-right space-y-4 text-[#141414]"
+            >
+              <div className="flex items-center gap-2 justify-end flex-row-reverse border-b-2 border-slate-250 pb-2">
+                <Sparkles className="w-5 h-5 text-amber-500 shrink-0" />
+                <h3 className="text-base font-black text-slate-900">
+                  הוספת האפליקציה למסך הבית 📱
+                </h3>
+              </div>
+
+              <div className="text-xs space-y-3 leading-relaxed font-bold text-slate-800">
+                <p>האפליקציה תיפתח בדיוק בתצוגה הנוכחית שלכם (<strong>{userRole === "child" ? "תצוגת ילדים 👦" : userRole === "driver" ? "תצוגת נהגים 🚗" : "תצוגת הורים 🔐"}</strong>):</p>
+                
+                <div className="bg-slate-50 p-3 border border-[#141414] space-y-1.5 font-sans">
+                  <p className="font-extrabold text-[#141414]">במכשירי Apple (Safari / iOS):</p>
+                  <p>1. לחצו על כפתור <strong>שיתוף (Share)</strong> <span className="text-sm">⎋</span> בתחתית הדפדפן.</p>
+                  <p>2. גללו למטה ובחרו <strong>הוסף למסך הבית (Add to Home Screen)</strong> <span className="text-sm">⊞</span>.</p>
+                </div>
+
+                <div className="bg-slate-50 p-3 border border-[#141414] space-y-1.5 font-sans">
+                  <p className="font-extrabold text-[#141414]">במכשירי Android / Chrome:</p>
+                  <p>1. לחצו על <strong>3 הנקודות</strong> בפינת הדפדפן.</p>
+                  <p>2. בחרו באפשרות <strong>התקנה (Install app)</strong> או <strong>הוספה למסך הבית</strong>.</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsInstallGuideOpen(false)}
+                className="w-full text-center py-2 bg-[#141414] text-white border-2 border-[#141414] font-black text-xs hover:bg-white hover:text-black transition-all cursor-pointer"
+              >
+                הבנתי, תודה! 👍
+              </button>
+            </motion.div>
           </div>
-          <p className="text-[10px] text-[#E4E3E0] opacity-80">
-            SYSTEM: ACTIVE | DATA_SYNC: REAL_TIME | ENCRYPTION: AES-256 | © 2026 סהרון - KIDRIDE
-          </p>
+        )}
+      </AnimatePresence>
+
+      {/* כותרת תחתונה מעוצבת ונקיה */}
+      <footer className="mt-auto border-t-2 border-[#141414] bg-[#141414] text-[#E4E3E0] py-8 text-center font-mono">
+        <div className="max-w-7xl mx-auto px-4 text-xs space-y-4">
+          <div className="flex flex-col items-center justify-center gap-3">
+            <button
+              onClick={handleAddToHomeScreen}
+              className="px-5 py-2.5 bg-amber-400 hover:bg-amber-350 text-black border-2 border-[#E4E3E0] hover:border-black font-black text-xs transition-all shadow-[2px_2px_0_0_#FFF] hover:shadow-none active:translate-y-0.5 cursor-pointer flex items-center gap-2 flex-row-reverse"
+              id="btn_add_to_home_screen"
+            >
+              <span>📱 שמירה והוספה למסך הבית</span>
+              <span className="text-[10px] bg-black text-white px-1.5 py-0.5 rounded uppercase">PWA</span>
+            </button>
+            <p className="text-[10px] text-slate-400 max-w-sm leading-normal">
+              טיפ: השמירה תשמור את הקישור הישיר לתצוגת <strong>{userRole === "child" ? "ילדים 👦" : userRole === "driver" ? "נהגים 🚗" : "הורים 🔐"}</strong>, כדי שהאפליקציה תיפתח בדיוק בטאב הנוכחי שלכם!
+            </p>
+          </div>
+
+          <div className="border-t border-slate-800 pt-4 flex flex-col items-center gap-1">
+            <div className="flex justify-center items-center gap-1.5 flex-row-reverse">
+              <span>המערכת מסונכרנת מקומית ובזמן אמת עבור מכשירים שונים</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+            </div>
+            <p className="text-[10px] text-[#E4E3E0] opacity-80">
+              SYSTEM: ACTIVE | DATA_SYNC: REAL_TIME | ENCRYPTION: AES-256 | © 2026 סהרון - KIDRIDE
+            </p>
+          </div>
         </div>
       </footer>
     </div>

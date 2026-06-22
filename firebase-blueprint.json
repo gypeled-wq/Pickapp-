@@ -1,0 +1,48 @@
+{
+  "collections": {
+    "drivers": {
+      "schema": {
+        "id": "string",
+        "name": "string",
+        "phone": "string",
+        "type": "string",
+        "carColor": "string",
+        "carPlate": "string",
+        "notes": "string"
+      }
+    },
+    "pickups": {
+      "schema": {
+        "id": "string",
+        "day": "string",
+        "childName": "string",
+        "time": "string",
+        "driverId": "string",
+        "status": "string",
+        "notes": "string",
+        "completed": "boolean",
+        "babysitterType": "string"
+      }
+    },
+    "logs": {
+      "schema": {
+        "id": "string",
+        "timestamp": "string",
+        "action": "string",
+        "details": "string",
+        "userRole": "string",
+        "childName": "string"
+      }
+    },
+    "alerts": {
+      "schema": {
+        "id": "string",
+        "timestamp": "string",
+        "title": "string",
+        "message": "string",
+        "type": "string",
+        "read": "boolean"
+      }
+    }
+  }
+}

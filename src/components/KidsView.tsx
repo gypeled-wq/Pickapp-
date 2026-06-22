@@ -3,16 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN } from "../types";
 import { StorageEngine, subscribeToStore } from "../data";
-import { Calendar, Clock, Smile, Car, ShieldAlert, CheckCircle2, Compass, User } from "lucide-react";
-import { motion } from "motion/react";
+import { Calendar, Clock, Smile, Car, ShieldAlert, CheckCircle2, Compass, User, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function KidsView() {
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [activeKid, setActiveKid] = useState("איתי");
+
+  // מודאל בקשת איסוף מילד
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [reqDay, setReqDay] = useState("ראשון");
+  const [reqTime, setReqTime] = useState("13:30");
+  const [reqNotes, setReqNotes] = useState("");
+  const [reqBabysitter, setReqBabysitter] = useState<"none" | "babysitter_only" | "both">("none");
 
   // מציאת היום הנוכחי (או הדמיה של היום לפי זמן המערכת הנוכחי)
   const getCurrentHebrewDay = (): string => {
@@ -43,6 +50,47 @@ export default function KidsView() {
 
   const handleImInTheCar = (pickupId: string) => {
     StorageEngine.togglePickupCompletion(pickupId);
+  };
+
+  const handleSaveRequest = (e: FormEvent) => {
+    e.preventDefault();
+    if (!reqNotes.trim()) {
+      alert("אנא כתבו מאיפה אתם צריכים איסוף (למשל: בית הספר, חוג כדורגל, מועדונית...)");
+      return;
+    }
+
+    // הוספת נסיעה ללא נהג משויך
+    StorageEngine.addPickup({
+      day: reqDay,
+      childName: activeKid,
+      time: reqTime,
+      driverId: "unassigned",
+      status: "regular",
+      notes: reqNotes.trim(),
+      completed: false,
+      babysitterType: reqBabysitter,
+    });
+
+    // הוספת לוג פעילות
+    StorageEngine.addLog(
+      "בקשת איסוף עצמאית מילד/ה",
+      `הילד/ה ${activeKid} שלח/ה בקשת איסוף עצמאית ליום ${reqDay} בשעה ${reqTime} מ: ${reqNotes}. סוג: ${
+        reqBabysitter === "babysitter_only" ? "בייביסיטר בלבד" : reqBabysitter === "both" ? "גם וגם" : "איסוף בלבד"
+      }`,
+      "child",
+      activeKid
+    );
+
+    // שליחת התראה דחופה להורים
+    StorageEngine.addAlert(
+      `בקשת איסוף חדשה מ${activeKid}!`,
+      `${activeKid} ביקש/ה איסוף ליום ${reqDay} בשעה ${reqTime} - מיקום: ${reqNotes}. נא לשייך מלווה בלו״ז.`,
+      "urgent"
+    );
+
+    setIsRequestModalOpen(false);
+    setReqNotes("");
+    setReqBabysitter("none");
   };
 
   return (
@@ -99,6 +147,30 @@ export default function KidsView() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* כרטיס קריאה מהירה לילדים שצריכים איסוף */}
+      <div className="bg-[#FFFCE8] border-4 border-[#141414] p-5 shadow-[4px_4px_0_0_#141414] flex flex-col sm:flex-row justify-between items-center gap-4 text-right">
+        <div>
+          <h4 className="text-base font-black text-amber-955 flex items-center gap-1.5 flex-row-reverse">
+            <span>🙋‍♂️ צריך איסוף ממועדונית או מהחוג השבוע?</span>
+          </h4>
+          <p className="text-xs text-amber-900 mt-1 font-bold">
+            אם יש לכם חוג או פעילות וצריך שמישהו יבוא לאסוף אתכם, לחצו על הכפתור ועדכנו את ההורים מיד!
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setReqDay(simulatedDay);
+            setReqTime("13:30");
+            setReqNotes("");
+            setReqBabysitter("none");
+            setIsRequestModalOpen(true);
+          }}
+          className="w-full sm:w-auto px-6 py-3.5 border-2 border-[#141414] bg-amber-400 hover:bg-amber-300 font-extrabold text-sm transition-all shadow-[2px_2px_0_0_#141414] hover:shadow-none active:translate-y-0.5 animate-pulse cursor-pointer flex items-center justify-center gap-1.5 flex-row-reverse text-amber-950"
+        >
+          <span>אני צריך איסוף! 🖐</span>
+        </button>
       </div>
 
       {/* מדור האיסוף העיקרי של היום */}
@@ -264,6 +336,133 @@ export default function KidsView() {
           </div>
         </div>
       </div>
+
+      {/* מודאל בקשת איסוף עצמאית לילד/ה */}
+      <AnimatePresence>
+        {isRequestModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ direction: "rtl" }}>
+            <div className="fixed inset-0 bg-[#141414]/85" onClick={() => setIsRequestModalOpen(false)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#E4E3E0] border-4 border-[#141414] p-6 max-w-md w-full tech-shadow z-10 text-right overflow-y-auto max-h-[90vh] text-[#141414] font-mono"
+              id="kids_pickup_request_modal"
+            >
+              <div className="flex items-center gap-2 border-b-2 border-[#141414] pb-2 mb-4 justify-start flex-row">
+                <AlertCircle className="w-5 h-5 text-amber-600 animate-bounce" />
+                <h3 className="font-extrabold text-[#141414] text-base uppercase">
+                  בקשת איסוף חדשה עבור מלווים / הורים
+                </h3>
+              </div>
+
+              <form onSubmit={handleSaveRequest} className="space-y-4">
+                <div className="bg-white p-3 border border-[#141414] space-y-1 text-xs">
+                  <p className="font-bold">היי {activeKid}! 🥰</p>
+                  <p className="text-slate-650">בלחיצה כאן תשלח התראה דחופה מיידית להורים ולמלווים.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800">איזה יום?</label>
+                    <select
+                      value={reqDay}
+                      onChange={(e) => setReqDay(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-right cursor-pointer focus:outline-none"
+                    >
+                      {DAYS_OF_WEEK.map((d) => (
+                        <option key={d} value={d}>
+                          יום {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800">באיזו שעה?</label>
+                    <input
+                      type="time"
+                      required
+                      value={reqTime}
+                      onChange={(e) => setReqTime(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-left font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800 block">מאיזה מקום או חוג? (למשל: חוג כדורגל, מועדונית, גבעת סומסום)</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={130}
+                    placeholder="אנא פרטו היכן לחכות לכם..."
+                    value={reqNotes}
+                    onChange={(e) => setReqNotes(e.target.value)}
+                    className="w-full text-xs p-3 border-2 border-[#141414] bg-white text-right focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800 block">האם אתם צריכים בייביסיטר? (או רק איסוף בלבד)</label>
+                  <div className="grid grid-cols-3 gap-2 flex-row-reverse">
+                    <button
+                      type="button"
+                      onClick={() => setReqBabysitter("none")}
+                      className={`text-[10.5px] py-2 px-1 border-2 border-[#141414] font-bold transition-colors ${
+                        reqBabysitter === "none"
+                          ? "bg-[#141414] text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      🚗 איסוף בלבד
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReqBabysitter("babysitter_only")}
+                      className={`text-[10.5px] py-2 px-1 border-2 border-[#141414] font-bold transition-colors ${
+                        reqBabysitter === "babysitter_only"
+                          ? "bg-amber-600 text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      🧸 בייביסיטר
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReqBabysitter("both")}
+                      className={`text-[10.5px] py-2 px-1 border-2 border-[#141414] font-bold transition-colors ${
+                        reqBabysitter === "both"
+                          ? "bg-indigo-600 text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      🚗+🧸 גם וגם
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsRequestModalOpen(false)}
+                    className="px-3.5 py-2 border-2 border-[#141414] bg-[#D1D0CC] text-black text-xs font-bold cursor-pointer hover:bg-slate-300"
+                  >
+                    ביטול / CANCEL
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border-2 border-[#141414] bg-amber-400 text-black hover:bg-black hover:text-white font-black text-xs cursor-pointer shadow-[2px_2px_0_0_#141414]"
+                    id="btn_submit_kids_req"
+                  >
+                    שלח בקשה להורים! 🚀
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

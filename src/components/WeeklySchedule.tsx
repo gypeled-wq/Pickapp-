@@ -31,6 +31,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const [formDriverId, setFormDriverId] = useState("");
   const [formStatus, setFormStatus] = useState<"regular" | "urgent">("regular");
   const [formNotes, setFormNotes] = useState("");
+  const [formBabysitterType, setFormBabysitterType] = useState<"none" | "babysitter_only" | "both">("none");
 
   // שלב שני של קלט נהג מזדמן מהיר מתוך הטופס
   const [isQuickDriver, setIsQuickDriver] = useState(false);
@@ -231,9 +232,12 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     setFormTime("13:30");
     if (drivers.length > 0) {
       setFormDriverId(drivers[0].id);
+    } else {
+      setFormDriverId("unassigned");
     }
     setFormStatus("regular");
     setFormNotes("");
+    setFormBabysitterType("none");
     setIsQuickDriver(false);
     setIsFormOpen(true);
   };
@@ -245,9 +249,10 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     const parsed = pickup.childName.split(",").map(c => c.trim()).filter(Boolean);
     setFormChildren(parsed.length > 0 ? parsed : ["איתי"]);
     setFormTime(pickup.time);
-    setFormDriverId(pickup.driverId);
+    setFormDriverId(pickup.driverId || "unassigned");
     setFormStatus(pickup.status);
     setFormNotes(pickup.notes);
+    setFormBabysitterType(pickup.babysitterType || "none");
     setIsQuickDriver(false);
     setIsFormOpen(true);
   };
@@ -286,6 +291,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         driverId: targetDriverId,
         status: formStatus,
         notes: formNotes,
+        babysitterType: formBabysitterType,
       });
     } else {
       // יצירת חדש
@@ -297,6 +303,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         status: formStatus,
         notes: formNotes,
         completed: false,
+        babysitterType: formBabysitterType,
       });
     }
 
@@ -425,6 +432,8 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     return getPickupsFor(day, child)[0];
   };
 
+  const unassignedPickups = pickups.filter(p => !p.driverId || p.driverId === "unassigned");
+
   return (
     <div className="space-y-6" id="scheduling_dashboard_module">
       {/* כפתור דיווח מהיר על שינויים עליון */}
@@ -445,6 +454,68 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             <AlertTriangle className="w-4 h-4" />
             <span>דיווח דחוף על שינוי או ביטול / DISPATCH</span>
           </button>
+        </div>
+      )}
+
+      {/* מדור נסיעות פנויות הממתינות לשיבוץ */}
+      {unassignedPickups.length > 0 && (
+        <div className="bg-[#FFFCE8] border-4 border-[#141414] tech-shadow p-5 text-right space-y-3 font-mono" style={{ direction: "rtl" }}>
+          <h4 className="text-sm font-black text-amber-955 flex items-center gap-1.5 flex-row-reverse">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <span>📋 נסיעות פנויות הממתינות לשיבוץ נהג ({unassignedPickups.length})</span>
+          </h4>
+          <p className="text-xs text-amber-950/85 font-black leading-normal">
+            מזוהות נסיעות בלוח ללא נהג מוגדר. נהגים קבועים או אורחים יכולים לשבץ את עצמם בקליק מהיר:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {unassignedPickups.map((p) => {
+              const driverNameActive = activeDriverId ? drivers.find(d => d.id === activeDriverId)?.name : "";
+              return (
+                <div key={p.id} className="bg-white border-2 border-[#141414] p-3.5 flex flex-col justify-between space-y-2 hover:bg-amber-50/20 shadow-[2px_2px_0_0_#141414]">
+                  <div className="flex justify-between items-center flex-row-reverse border-b border-dashed border-slate-350 pb-1.5">
+                    <span className="font-extrabold text-[#141414] text-xs">יום {p.day} • {p.time}</span>
+                    <span className="bg-amber-100 text-amber-950 text-[10px] px-1.5 py-0.5 border border-amber-950 font-black font-mono">
+                      {p.childName}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-700 space-y-1">
+                    {p.notes ? <p className="italic">🎯 &quot;{p.notes}&quot;</p> : <p className="text-slate-400">אין הערות מיוחדות</p>}
+                    {p.babysitterType && p.babysitterType !== "none" && (
+                      <span className="inline-block mt-1 font-black text-[10px] bg-indigo-50 text-indigo-950 border border-indigo-300 px-1.5 py-0.5 rounded">
+                        🧸 {p.babysitterType === "babysitter_only" ? "בייביסיטר בלבד" : "איסוף + בייביסיטר"}
+                      </span>
+                    )}
+                  </div>
+                  {userRole === "driver" && activeDriverId ? (
+                    <button
+                      onClick={() => {
+                        StorageEngine.updatePickup({ ...p, driverId: activeDriverId });
+                        StorageEngine.addLog(
+                          "שיבוץ נהג עצמי",
+                          `הנהג/ת ${driverNameActive || activeDriverId} לקח/ה אחריות על האיסוף של ${p.childName} ביום ${p.day} בשעה ${p.time}.`,
+                          "system",
+                          p.childName
+                        );
+                        StorageEngine.addAlert(
+                          "שיבוץ נסיעה פנויה",
+                          `${driverNameActive || "נהג"} שיבץ/ה את עצמו לאיסוף של ${p.childName} ביום ${p.day}.`,
+                          "success"
+                        );
+                      }}
+                      className="w-full py-1.5 text-center bg-[#141414] text-white hover:bg-white hover:text-black hover:border-black font-black text-[11px] border-2 border-[#141414] transition-all cursor-pointer shadow-[2px_2px_0_0_#141414] active:translate-y-0.5 active:shadow-none"
+                    >
+                      🖐 אני אקח את זה!
+                    </button>
+                  ) : (
+                    <p className="text-[10px] text-amber-900 border border-transparent italic">אנא התחבר כמלווה/נהג כדי לשבץ את עצמך</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -630,13 +701,61 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                                   </span>
                                 </div>
 
+                                {item.babysitterType && item.babysitterType !== "none" && (
+                                  <div className="mt-1 text-right">
+                                    <span className="inline-flex items-center gap-1.5 bg-indigo-50 border-2 border-indigo-900 text-indigo-950 font-black text-[10.5px] px-2 py-0.5 rounded shadow-[1px_1px_0_0_#1e1b4b] flex-row-reverse">
+                                      <span>🧸</span>
+                                      <span>
+                                        {item.babysitterType === "babysitter_only"
+                                          ? "בייביסיטר בלבד"
+                                          : "איסוף + בייביסיטר"}
+                                      </span>
+                                    </span>
+                                  </div>
+                                )}
+
                                 {/* פרטי הנהג והרכב */}
                                 <div className="space-y-1.5 text-right mt-3">
                                   <div className="flex items-center gap-1.5 flex-row-reverse text-sm font-bold text-slate-900">
-                                    <User className="w-4 h-4 text-slate-700" />
-                                    <span className="font-bold underline">{driver ? driver.name : "רכב לא ידוע"}</span>
-                                    {driver?.type === "guest" && (
-                                      <span className="bg-orange-100 text-orange-900 border border-orange-500 text-[9px] font-black font-mono px-1">GUEST</span>
+                                    {(!item.driverId || item.driverId === "unassigned") ? (
+                                      <div className="flex flex-col items-end w-full space-y-1.5">
+                                        <span className="text-red-700 font-extrabold bg-red-100 border-2 border-red-400 px-2.5 py-1 text-xs animate-pulse rounded flex items-center gap-1 flex-row-reverse">
+                                          ⚠️ דרוש נהג! (נסיעה פנויה)
+                                        </span>
+                                        {userRole === "driver" && activeDriverId && (
+                                          <button
+                                            onClick={() => {
+                                              const myDriverObject = drivers.find(d => d.id === activeDriverId);
+                                              StorageEngine.updatePickup({
+                                                ...item,
+                                                driverId: activeDriverId
+                                              });
+                                              StorageEngine.addLog(
+                                                "שיבוץ נהג עצמי",
+                                                `הנהג/ת ${myDriverObject ? myDriverObject.name : activeDriverId} לקח/ה אחריות על האיסוף של ${item.childName} ביום ${item.day} בשעה ${item.time}.`,
+                                                "system",
+                                                item.childName
+                                              );
+                                              StorageEngine.addAlert(
+                                                "נסיעה שובצה בהצלחה!",
+                                                `${myDriverObject ? myDriverObject.name : "נהג"} שיבץ את עצמו לאיסוף של ${item.childName} ביום ${item.day}.`,
+                                                "success"
+                                              );
+                                            }}
+                                            className="w-full text-center py-1.5 px-3 bg-emerald-600 text-white font-black text-xs hover:bg-[#141414] border-2 border-emerald-950 transition-all cursor-pointer shadow-[2px_2px_0_0_#064e3b] active:translate-y-0.5 active:shadow-none"
+                                          >
+                                            🖐 אני אאסוף! (שייך אלי)
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <User className="w-4 h-4 text-slate-700" />
+                                        <span className="font-bold underline">{driver ? driver.name : "רכב לא ידוע"}</span>
+                                        {driver?.type === "guest" && (
+                                          <span className="bg-orange-100 text-orange-900 border border-orange-500 text-[9px] font-black font-mono px-1">GUEST</span>
+                                        )}
+                                      </>
                                     )}
                                   </div>
 
@@ -787,11 +906,48 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                       </span>
                     </div>
 
-                    <div className="space-y-1 text-slate-800 text-xs text-right">
-                      <p className="font-bold flex items-center gap-1 justify-end flex-row-reverse">
-                        <User className="w-4 h-4 text-slate-800" />
-                        <span>נהג/ת: {driver ? driver.name : "לא ידוע"}</span>
-                      </p>
+                    {item.babysitterType && item.babysitterType !== "none" && (
+                      <div className="text-right pb-1">
+                        <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-950 text-[10px] px-2 py-0.5 rounded border border-indigo-300 font-black font-mono flex-row-reverse">
+                          <span>🧸</span>
+                          <span>
+                            {item.babysitterType === "babysitter_only"
+                              ? "בייביסיטר בלבד"
+                              : "איסוף + בייביסיטר"}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1 text-slate-800 text-xs text-right animate-transition">
+                      {(!item.driverId || item.driverId === "unassigned") ? (
+                        <div className="space-y-1.5 mt-1">
+                          <p className="text-red-700 font-extrabold bg-red-100 border border-red-400 p-1.5 text-xs text-center rounded">
+                            ⚠️ דרוש נהג! (נסיעה פנויה)
+                          </p>
+                          {userRole === "driver" && activeDriverId && (
+                            <button
+                              onClick={() => {
+                                StorageEngine.updatePickup({ ...item, driverId: activeDriverId });
+                                StorageEngine.addLog(
+                                  "שיבוץ נהג עצמי",
+                                  `הנהג/ת ${drivers.find(d => d.id === activeDriverId)?.name || activeDriverId} שיבץ/ה את עצמו לאיסוף של ${item.childName} ביום ${item.day} בשעה ${item.time}.`,
+                                  "system",
+                                  item.childName
+                                );
+                              }}
+                              className="w-full text-center py-1.5 px-3 bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 border border-emerald-950 transition-all cursor-pointer shadow-[2px_2px_0_0_#064e3b]"
+                            >
+                              🖐 שבץ אותי כנהג!
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="font-bold flex items-center gap-1 justify-end flex-row-reverse">
+                          <User className="w-4 h-4 text-slate-800" />
+                          <span>נהג/ת: {driver ? driver.name : "לא ידוע"}</span>
+                        </p>
+                      )}
                       {driver?.phone && (
                         <p className="flex items-center gap-1 justify-end flex-row-reverse">
                           <Phone className="w-3.5 h-3.5 text-slate-800" />
@@ -1273,6 +1429,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                       className="w-full text-xs px-3 py-2 border-2 border-[#141414] bg-white focus:outline-none"
                       id="select_driver_selector"
                     >
+                      <option value="unassigned">⚠️ ללא נהג משויך (נסיעה פנויה/דרוש נהג)</option>
                       {drivers.map((drv) => (
                         <option key={drv.id} value={drv.id}>
                           {drv.name} ({drv.type === "permanent" ? "קבוע" : "אורח"}) • {drv.phone}
@@ -1338,6 +1495,45 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                       }`}
                     >
                       דחוף / שינוי בהול (URGENT)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800 block">האם נדרש בייביסיטר? 🧸</label>
+                  <div className="grid grid-cols-3 gap-2 flex-row-reverse">
+                    <button
+                      type="button"
+                      onClick={() => setFormBabysitterType("none")}
+                      className={`text-[11px] py-1.5 px-0.5 border-2 border-[#141414] font-black transition-colors ${
+                        formBabysitterType === "none"
+                          ? "bg-[#141414] text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      🚗 איסוף בלבד
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormBabysitterType("babysitter_only")}
+                      className={`text-[11px] py-1.5 px-0.5 border-2 border-[#141414] font-black transition-colors ${
+                        formBabysitterType === "babysitter_only"
+                          ? "bg-amber-600 text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      🧸 בייביסיטר בלבד
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormBabysitterType("both")}
+                      className={`text-[11px] py-1.5 px-0.5 border-2 border-[#141414] font-black transition-colors ${
+                        formBabysitterType === "both"
+                          ? "bg-indigo-650 text-white"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      🚗+🧸 גם וגם
                     </button>
                   </div>
                 </div>

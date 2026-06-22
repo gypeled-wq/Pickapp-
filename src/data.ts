@@ -4,6 +4,8 @@
  */
 
 import { Driver, Pickup, ActivityLog, AlertNotification } from "./types";
+import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { db } from "./firebase";
 
 // מזהים קשיחים לנהגי המפתח ההתחלתיים
 const PAPA_ID = "drv_papa";
@@ -293,7 +295,7 @@ const INITIAL_ALERTS: AlertNotification[] = [
   },
 ];
 
-// מפתחות אחסון ל-LocalStorage
+// מפתחות אחסון ל-LocalStorage לשחזור מהיר
 const KEYS = {
   DRIVERS: "kid_sync_drivers_v1",
   PICKUPS: "kid_sync_pickups_v1",
@@ -319,7 +321,6 @@ export function loadData<T>(key: string, initial: T): T {
 export function saveData<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    // שליחת אירוע מותאם ידנית לעיוני טאב באותו חלון ברשת פנימית של React
     window.dispatchEvent(new CustomEvent("local-storage-sync", { detail: { key, data } }));
   } catch (err) {
     console.error("Error saving localStorage key: " + key, err);
@@ -339,7 +340,6 @@ function notifyAll() {
   listeners.forEach((l) => l());
 }
 
-// האזנה לאירועי סנכרון חיצוניים (בין טאבים) ופנימיים
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
     if (Object.values(KEYS).includes(e.key || "")) {
@@ -351,44 +351,220 @@ if (typeof window !== "undefined") {
   });
 }
 
+// קאשים דינאמיים מקומיים המסונכרנים מול Firebase ומספקים שליפה מהירה
+let currentDrivers: Driver[] = loadData(KEYS.DRIVERS, INITIAL_DRIVERS);
+let currentPickups: Pickup[] = loadData(KEYS.PICKUPS, INITIAL_PICKUPS);
+let currentLogs: ActivityLog[] = loadData(KEYS.LOGS, INITIAL_LOGS);
+let currentAlerts: AlertNotification[] = loadData(KEYS.ALERTS, INITIAL_ALERTS);
+
+// פונקציית עזר לאתחול (seeding) של אוספים ריקים
+async function seedCollectionIfEmpty(collectionName: string, initialData: any[]) {
+  try {
+    const colRef = collection(db, collectionName);
+    const snap = await getDocs(colRef);
+    if (snap.empty) {
+      console.log(`Seeding Firestore collection: ${collectionName}`);
+      for (const item of initialData) {
+        await setDoc(doc(db, collectionName, item.id), item);
+      }
+    }
+  } catch (err) {
+    console.error(`Error during seeding ${collectionName}:`, err);
+  }
+}
+
+// אתחול הסנכרון והאזנות בזמן אמת
+async function startFirebaseSync() {
+  const isLocalStorageSeeded = localStorage.getItem("kid_sync_v1_seeded");
+  if (!isLocalStorageSeeded) {
+    await seedCollectionIfEmpty("drivers", INITIAL_DRIVERS);
+    await seedCollectionIfEmpty("pickups", INITIAL_PICKUPS);
+    await seedCollectionIfEmpty("logs", INITIAL_LOGS);
+    await seedCollectionIfEmpty("alerts", INITIAL_ALERTS);
+    localStorage.setItem("kid_sync_v1_seeded", "true");
+  }
+
+  // האזנות בזמן אמת לעדכונים מכל מכשיר/דפדפן
+  onSnapshot(collection(db, "drivers"), (snapshot) => {
+    const list: Driver[] = [];
+    snapshot.forEach((doc) => {
+      list.push(doc.data() as Driver);
+    });
+    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
+    if (list.length > 0 || isSeeded) {
+      currentDrivers = list;
+      saveData(KEYS.DRIVERS, list);
+      notifyAll();
+    }
+  });
+
+  onSnapshot(collection(db, "pickups"), (snapshot) => {
+    const list: Pickup[] = [];
+    snapshot.forEach((doc) => {
+      list.push(doc.data() as Pickup);
+    });
+    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
+    if (list.length > 0 || isSeeded) {
+      currentPickups = list;
+      saveData(KEYS.PICKUPS, list);
+      notifyAll();
+    }
+  });
+
+  onSnapshot(collection(db, "logs"), (snapshot) => {
+    const list: ActivityLog[] = [];
+    snapshot.forEach((doc) => {
+      list.push(doc.data() as ActivityLog);
+    });
+    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
+    if (list.length > 0 || isSeeded) {
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      currentLogs = list;
+      saveData(KEYS.LOGS, list);
+      notifyAll();
+    }
+  });
+
+  onSnapshot(collection(db, "alerts"), (snapshot) => {
+    const list: AlertNotification[] = [];
+    snapshot.forEach((doc) => {
+      list.push(doc.data() as AlertNotification);
+    });
+    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
+    if (list.length > 0 || isSeeded) {
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      currentAlerts = list;
+      saveData(KEYS.ALERTS, list);
+      notifyAll();
+    }
+  });
+}
+
+startFirebaseSync();
+
+// פונקציות לעדכון הנתונים ב-Firestore באופן אוטומטי
+async function syncDriversInFirestore(newDrivers: Driver[]) {
+  try {
+    const snap = await getDocs(collection(db, "drivers"));
+    const existingIds = snap.docs.map(doc => doc.id);
+    const newIds = newDrivers.map(d => d.id);
+
+    for (const id of existingIds) {
+      if (!newIds.includes(id)) {
+        await deleteDoc(doc(db, "drivers", id));
+      }
+    }
+    for (const d of newDrivers) {
+      await setDoc(doc(db, "drivers", d.id), d);
+    }
+  } catch (err) {
+    console.error("Firestore sync Error (drivers):", err);
+  }
+}
+
+async function syncPickupsInFirestore(newPickups: Pickup[]) {
+  try {
+    const snap = await getDocs(collection(db, "pickups"));
+    const existingIds = snap.docs.map(doc => doc.id);
+    const newIds = newPickups.map(p => p.id);
+
+    for (const id of existingIds) {
+      if (!newIds.includes(id)) {
+        await deleteDoc(doc(db, "pickups", id));
+      }
+    }
+    for (const p of newPickups) {
+      await setDoc(doc(db, "pickups", p.id), p);
+    }
+  } catch (err) {
+    console.error("Firestore sync Error (pickups):", err);
+  }
+}
+
+async function syncLogsInFirestore(newLogs: ActivityLog[]) {
+  try {
+    const snap = await getDocs(collection(db, "logs"));
+    const existingIds = snap.docs.map(doc => doc.id);
+    const newIds = newLogs.map(l => l.id);
+
+    for (const id of existingIds) {
+      if (!newIds.includes(id)) {
+        await deleteDoc(doc(db, "logs", id));
+      }
+    }
+    for (const l of newLogs) {
+      await setDoc(doc(db, "logs", l.id), l);
+    }
+  } catch (err) {
+    console.error("Firestore sync Error (logs):", err);
+  }
+}
+
+async function syncAlertsInFirestore(newAlerts: AlertNotification[]) {
+  try {
+    const snap = await getDocs(collection(db, "alerts"));
+    const existingIds = snap.docs.map(doc => doc.id);
+    const newIds = newAlerts.map(a => a.id);
+
+    for (const id of existingIds) {
+      if (!newIds.includes(id)) {
+        await deleteDoc(doc(db, "alerts", id));
+      }
+    }
+    for (const a of newAlerts) {
+      await setDoc(doc(db, "alerts", a.id), a);
+    }
+  } catch (err) {
+    console.error("Firestore sync Error (alerts):", err);
+  }
+}
+
 // ---------------------------------------------
-// מחלקה סינכרונית לניהול המחסן המדומה
+// מחלקה סינכרונית לניהול המחסן המדומה (כעת מקושרת ל-Firestore בזמן אמת)
 // ---------------------------------------------
 export const StorageEngine = {
   getDrivers(): Driver[] {
-    return loadData(KEYS.DRIVERS, INITIAL_DRIVERS);
+    return currentDrivers;
   },
 
   saveDrivers(drivers: Driver[]) {
+    currentDrivers = drivers;
     saveData(KEYS.DRIVERS, drivers);
     notifyAll();
+    syncDriversInFirestore(drivers);
   },
 
   getPickups(): Pickup[] {
-    return loadData(KEYS.PICKUPS, INITIAL_PICKUPS);
+    return currentPickups;
   },
 
   savePickups(pickups: Pickup[]) {
+    currentPickups = pickups;
     saveData(KEYS.PICKUPS, pickups);
     notifyAll();
+    syncPickupsInFirestore(pickups);
   },
 
   getLogs(): ActivityLog[] {
-    return loadData(KEYS.LOGS, INITIAL_LOGS);
+    return currentLogs;
   },
 
   saveLogs(logs: ActivityLog[]) {
+    currentLogs = logs;
     saveData(KEYS.LOGS, logs);
     notifyAll();
+    syncLogsInFirestore(logs);
   },
 
   getAlerts(): AlertNotification[] {
-    return loadData(KEYS.ALERTS, INITIAL_ALERTS);
+    return currentAlerts;
   },
 
   saveAlerts(alerts: AlertNotification[]) {
+    currentAlerts = alerts;
     saveData(KEYS.ALERTS, alerts);
     notifyAll();
+    syncAlertsInFirestore(alerts);
   },
 
   // הוספת לוג פעולה חדש

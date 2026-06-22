@@ -23,6 +23,7 @@ export interface Pickup {
   status: PickupStatus;
   notes: string; // הערות לחוג, מיקום וכו׳
   completed: boolean; // האם הושלם בהצלחה
+  babysitterType?: "none" | "babysitter_only" | "both"; // סוג בייביסיטר: ללא, רק בייביסיטר, גם וגם
 }
 
 export interface ActivityLog {
