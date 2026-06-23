@@ -509,6 +509,31 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     StorageEngine.togglePickupCompletion(id);
   };
 
+  const handleDriverCannotPickup = (pickupItem: Pickup) => {
+    const myDriverObject = drivers.find(d => d.id === activeDriverId);
+    const driverName = myDriverObject ? myDriverObject.name : "נהג";
+    
+    // החזרת הנסיעה למאגר ללא הגדרת נהג
+    StorageEngine.updatePickup({
+      ...pickupItem,
+      driverId: "unassigned",
+      completed: false
+    });
+
+    StorageEngine.addLog(
+      "ביטול שיבוץ",
+      `הנהג/ת ${driverName} הודיע/ה כי לא יוכל/תוכל לבצע את האיסוף של ${pickupItem.childName} ביום ${pickupItem.day} בשעה ${pickupItem.time}. הנסיעה הוחזרה למאגר.`,
+      "system",
+      pickupItem.childName
+    );
+
+    StorageEngine.addAlert(
+      `⚠️ דרוש נהג! עידכון מנהג (${pickupItem.childName})`,
+      `${driverName} ביטל/ה את השיבוץ ליום ${pickupItem.day} בשעה ${pickupItem.time}. הנסיעה הוחזרה למאגר והיא דורשת שיבוץ מחדש!`,
+      "urgent"
+    );
+  };
+
   // דיווח מהיר על שינויים וביטולים דחופים (מפעיל התראה מיידית)
   const handleUrgentReportSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1069,6 +1094,17 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                                     </button>
                                   )}
 
+                                  {/* כפתור ביטול שיבוץ מהיר לנהג (החזרת הנסיעה למאגר) */}
+                                  {isMyRide && (
+                                    <button
+                                      onClick={() => handleDriverCannotPickup(item)}
+                                      className="p-1 px-1.5 text-red-950 bg-rose-50 hover:bg-rose-100 border border-red-900 shadow-[1px_1px_0_0_#991b1b] font-black text-[9px] flex items-center gap-1 cursor-pointer transition-colors"
+                                      title="דווח שלא תוכל לבצע איסוף זה והחזר למאגר"
+                                    >
+                                      <span>🛑 לא יכול לאסוף</span>
+                                    </button>
+                                  )}
+
                                   {/* הרשאות הורים - מחיקה ועריכה */}
                                   {userRole === "parent" && (
                                     <div className="flex gap-1">
@@ -1284,6 +1320,17 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                               >
                                 <MessageSquare className="w-3 h-3 text-white fill-white" />
                                 <span>WhatsApp</span>
+                              </button>
+                            )}
+
+                            {/* כפתור ביטול שיבוץ מהיר לנהג (החזרת הנסיעה למאגר) */}
+                            {isMyRide && (
+                              <button
+                                onClick={() => handleDriverCannotPickup(item)}
+                                className="p-1 px-1.5 text-red-950 bg-rose-50 hover:bg-rose-100 border border-red-900 shadow-[1px_1px_0_0_#991b1b] font-black text-[9px] flex items-center gap-1 cursor-pointer transition-colors"
+                                title="דווח שלא תוכל לבצע איסוף זה והחזר למאגר"
+                              >
+                                <span>🛑 לא יכול לאסוף</span>
                               </button>
                             )}
 

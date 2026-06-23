@@ -9,40 +9,9 @@ import { StorageEngine, subscribeToStore } from "../data";
 import { Bell, BellRing, Check, ShieldAlert, CheckCircle2, Info, X, MessageSquareCode } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-// פונקציה לייצור צליל התראה דיגיטלי נעים ללא תלות בקבצי שמע חיצוניים
+// פונקציה לייצור צליל התראה דיגיטלי נעים (הושתק לבקשת המשתמש)
 const playNotificationChime = () => {
-  try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const now = ctx.currentTime;
-    
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    
-    osc1.type = "sine";
-    osc2.type = "sine";
-    
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(0.12, now + 0.05);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-    
-    osc1.frequency.setValueAtTime(659.25, now); // Tone E5
-    osc2.frequency.setValueAtTime(987.77, now + 0.08); // Tone B5
-    
-    osc1.connect(gainNode);
-    osc2.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    
-    osc1.start(now);
-    osc2.start(now + 0.08);
-    
-    osc1.stop(now + 0.5);
-    osc2.stop(now + 0.5);
-  } catch (e) {
-    console.warn("Audio chime failed to play:", e);
-  }
+  // מושתק בכל המצבים לבקשת המשתמש
 };
 
 interface NotificationCenterProps {
@@ -210,8 +179,8 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
 
   const unreadCount = displayAlerts.filter((a) => !a.read).length;
 
-  // אם המשתמש הוא ילד, הוא לא רואה בכלל את האייקון של זמזום ההתראות
-  if (userRole === "child") {
+  // להציג את אייקון ההתראות אך ורק להורים!
+  if (userRole !== "parent") {
     return null;
   }
 
