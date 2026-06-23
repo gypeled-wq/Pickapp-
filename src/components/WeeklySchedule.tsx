@@ -70,6 +70,17 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     motherSent: boolean;
   } | null>(null);
 
+  // מודאל הודעת ביטול ננהג להורים
+  const [cancellationMessagePrompt, setCancellationMessagePrompt] = useState<{
+    pickup: Pickup;
+    parentMessage: string;
+    motherName: string;
+    fatherName: string;
+    motherUrl: string;
+    fatherUrl: string;
+    generalUrl: string;
+  } | null>(null);
+
   useEffect(() => {
     setPickups(StorageEngine.getPickups());
     setDrivers(StorageEngine.getDrivers());
@@ -532,6 +543,33 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       `${driverName} ביטל/ה את השיבוץ ליום ${pickupItem.day} בשעה ${pickupItem.time}. הנסיעה הוחזרה למאגר והיא דורשת שיבוץ מחדש!`,
       "urgent"
     );
+
+    // הכנת פרטי ההתראה לשליחה מהירה להורים
+    const msgText = `⚠️ *דיווח דחוף מנהג סהרון* ⚠️\n\nהיי,\nאני מצטער לעדכן שלא אוכל לבצע את האיסוף של *${pickupItem.childName}* ב*יום ${pickupItem.day}* בשעה *${pickupItem.time}*.\n\nהחזרתי את הנסיעה למאגר הכללי לשיבוץ מחדש. אנא ודאו שיבוץ נהג חלופי! 🧡`;
+    
+    const mamaDriver = drivers.find(d => d.id === "drv_mama");
+    const papaDriver = drivers.find(d => d.id === "drv_papa");
+    
+    const cleanPhone = (pNum: string) => {
+      let cleaned = pNum.replace(/[^0-9]/g, "");
+      if (cleaned.startsWith("0")) {
+        cleaned = "972" + cleaned.substring(1);
+      }
+      return cleaned;
+    };
+    
+    const motherCleanPhone = mamaDriver ? cleanPhone(mamaDriver.phone) : "972549876543";
+    const fatherCleanPhone = papaDriver ? cleanPhone(papaDriver.phone) : "972521234567";
+    
+    setCancellationMessagePrompt({
+      pickup: pickupItem,
+      parentMessage: msgText,
+      motherName: mamaDriver?.name || "מיכל (אמא)",
+      fatherName: papaDriver?.name || "ארז (אבא)",
+      motherUrl: `https://api.whatsapp.com/send?phone=${motherCleanPhone}&text=${encodeURIComponent(msgText)}`,
+      fatherUrl: `https://api.whatsapp.com/send?phone=${fatherCleanPhone}&text=${encodeURIComponent(msgText)}`,
+      generalUrl: `https://api.whatsapp.com/send?text=${encodeURIComponent(msgText)}`
+    });
   };
 
   // דיווח מהיר על שינויים וביטולים דחופים (מפעיל התראה מיידית)
@@ -1961,6 +1999,95 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                   className="w-full py-2 bg-[#D1D0CC] hover:bg-slate-300 border-2 border-[#141414] text-xs font-black cursor-pointer text-center"
                 >
                   הבנתי, סגור הודעה זו 👍
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* מודאל דיווח נהג על ביטול והצעה לשלוח הודעה להורים */}
+      <AnimatePresence>
+        {cancellationMessagePrompt && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-[#141414]/90" onClick={() => setCancellationMessagePrompt(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#FFF5F5] border-4 border-[#141414] p-6 max-w-md w-full tech-shadow z-10 text-right text-[#141414] font-mono relative"
+              id="driver_cancellation_msg_popup"
+            >
+              <div className="flex items-center gap-2 flex-row-reverse pb-2 mb-4 border-b-2 border-red-950 text-red-700">
+                <AlertTriangle className="w-5 h-5 text-red-600 animate-bounce" />
+                <h3 className="font-extrabold text-[#141414] text-base">
+                  נסיעה בוטלה! שלח הודעה להורים
+                </h3>
+              </div>
+
+              <div className="space-y-4 text-xs leading-relaxed font-sans text-slate-800">
+                <p className="font-bold text-slate-950">
+                  הנסיעה של <span className="underline decoration-red-500 font-black">{cancellationMessagePrompt.pickup.childName}</span> ביום {cancellationMessagePrompt.pickup.day} בשעה {cancellationMessagePrompt.pickup.time} הוחזרה למאגר.
+                </p>
+                <p className="text-slate-700">
+                  נא עדכן את ההורים בדבר הביטול כדי שיוכלו לדאוג לשיבוץ נהג חלופי בהקדם:
+                </p>
+
+                <div className="bg-red-50/50 p-3 border border-[#141414] rounded text-right space-y-1 bg-white font-mono text-[11px] ltr text-left select-all whitespace-pre-wrap">
+                  {cancellationMessagePrompt.parentMessage}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-4 border-t border-slate-300 mt-4 leading-normal">
+                {/* כפתור לאמא */}
+                <button
+                  onClick={() => {
+                    window.open(cancellationMessagePrompt.motherUrl, "_blank");
+                  }}
+                  className="w-full py-2.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none transition-all text-center flex items-center justify-center gap-2 flex-row-reverse"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>שלח וואטסאפ לאמא ({cancellationMessagePrompt.motherName})</span>
+                </button>
+
+                {/* כפתור לאבא */}
+                <button
+                  onClick={() => {
+                    window.open(cancellationMessagePrompt.fatherUrl, "_blank");
+                  }}
+                  className="w-full py-2.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none transition-all text-center flex items-center justify-center gap-2 flex-row-reverse"
+                >
+                  <MessageSquare className="w-4 h-4 animate-pulse" />
+                  <span>שלח וואטסאפ לאבא ({cancellationMessagePrompt.fatherName})</span>
+                </button>
+
+                {/* שיתוף כללי */}
+                <button
+                  onClick={() => {
+                    window.open(cancellationMessagePrompt.generalUrl, "_blank");
+                  }}
+                  className="w-full py-2 bg-white text-[#141414] hover:bg-slate-100 border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[1.5px_1.5px_0_0_#141414] hover:shadow-none transition-all text-center flex items-center justify-center gap-2 flex-row-reverse"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>קבוצת הורים (שיתוף כללי)</span>
+                </button>
+
+                {/* העתקה ללוח הטיפוס */}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(cancellationMessagePrompt.parentMessage);
+                    alert("נוסח ההודעה הועתק ללוח הגזירים! 📋");
+                  }}
+                  className="w-full py-2 bg-[#D1D0CC] hover:bg-slate-300 text-slate-800 border-2 border-[#141414] text-xs font-black cursor-pointer text-center"
+                >
+                  📋 העתק טקסט הודעה ללוח
+                </button>
+
+                <button
+                  onClick={() => setCancellationMessagePrompt(null)}
+                  className="w-full py-1.5 bg-[#E4E3E0] hover:bg-slate-200 border-2 border-dashed border-[#141414] text-xs font-black cursor-pointer text-center text-slate-600"
+                >
+                  סגור ללא שליחה
                 </button>
               </div>
             </motion.div>

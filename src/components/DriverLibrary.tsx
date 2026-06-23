@@ -6,12 +6,13 @@
 import React, { useState, useEffect } from "react";
 import { Driver } from "../types";
 import { StorageEngine, subscribeToStore } from "../data";
-import { User, Phone, Car, Plus, Trash2, Check, Star, RefreshCcw, Bell, Shield, ShieldAlert, X } from "lucide-react";
+import { User, Phone, Car, Plus, Trash2, Check, Star, RefreshCcw, Bell, Shield, ShieldAlert, X, Edit3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function DriverLibrary() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
 
   // מצבי טופס
   const [name, setName] = useState("");
@@ -30,25 +31,50 @@ export default function DriverLibrary() {
     });
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !phone) return;
+  const handleStartEdit = (driver: Driver) => {
+    setEditingDriverId(driver.id);
+    setName(driver.name);
+    setPhone(driver.phone);
+    setVehicleInfo(driver.vehicleInfo || "");
+    setType(driver.type);
+    setReminderOptIn(driver.reminderOptIn);
+    setIsAdding(true);
+  };
 
-    StorageEngine.addDriver({
-      name,
-      phone,
-      vehicleInfo,
-      type,
-      reminderOptIn,
-    });
-
-    // איפוס
+  const handleCancelForm = () => {
+    setIsAdding(false);
+    setEditingDriverId(null);
     setName("");
     setPhone("");
     setVehicleInfo("");
     setType("guest");
     setReminderOptIn(true);
-    setIsAdding(false);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !phone) return;
+
+    if (editingDriverId) {
+      StorageEngine.updateDriver({
+        id: editingDriverId,
+        name,
+        phone,
+        vehicleInfo,
+        type,
+        reminderOptIn,
+      });
+    } else {
+      StorageEngine.addDriver({
+        name,
+        phone,
+        vehicleInfo,
+        type,
+        reminderOptIn,
+      });
+    }
+
+    handleCancelForm();
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -85,7 +111,10 @@ export default function DriverLibrary() {
         </div>
         {!isAdding && (
           <button
-            onClick={() => setIsAdding(true)}
+            onClick={() => {
+              handleCancelForm();
+              setIsAdding(true);
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 border-2 border-[#141414] bg-white hover:bg-[#141414] hover:text-white text-xs font-black transition-all cursor-pointer shadow-[2px_2px_0_0_#141414] flex-row-reverse"
             id="btn_add_driver_open"
           >
@@ -107,10 +136,12 @@ export default function DriverLibrary() {
           >
             <form onSubmit={handleSubmit} className="p-4 space-y-4 text-right">
               <div className="flex justify-between items-center mb-2 flex-row-reverse border-b-2 border-[#141414] pb-2">
-                <span className="font-bold text-[#141414] text-sm">כרטיס נהג/ת חדש במערכת</span>
+                <span className="font-bold text-[#141414] text-sm">
+                  {editingDriverId ? `עריכת פרטי נהג/ת: ${name}` : "כרטיס נהג/ת חדש במערכת"}
+                </span>
                 <button
                   type="button"
-                  onClick={() => setIsAdding(false)}
+                  onClick={handleCancelForm}
                   className="text-slate-700 hover:text-black p-1"
                 >
                   <X className="w-4 h-4" />
@@ -201,17 +232,17 @@ export default function DriverLibrary() {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsAdding(false)}
+                  onClick={handleCancelForm}
                   className="px-3.5 py-2 border-2 border-[#141414] bg-[#D1D0CC] hover:bg-slate-300 text-black text-xs font-black cursor-pointer transition-colors"
                 >
                   ביטול / CANCEL
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 border-2 border-[#141414] bg-white text-[#141414] hover:bg-[#141414] hover:text-white text-xs font-black cursor-pointer transition-colors"
+                  className="px-4 py-2 border-2 border-[#141414] bg-[#FFF8E6] text-[#141414] hover:bg-[#141414] hover:text-white text-xs font-black cursor-pointer transition-colors"
                   id="btn_submit_new_driver"
                 >
-                  שמור נהג בספרייה
+                  {editingDriverId ? "עדכן ושמור שינויים" : "שמור נהג בספרייה"}
                 </button>
               </div>
             </form>
@@ -291,6 +322,14 @@ export default function DriverLibrary() {
                   <span className="text-[10px] font-mono uppercase hidden sm:inline">
                     {driver.reminderOptIn ? "REMIND: ON" : "REMIND: OFF"}
                   </span>
+                </button>
+
+                <button
+                  onClick={() => handleStartEdit(driver)}
+                  className="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 border border-transparent hover:border-[#141414] transition-colors cursor-pointer"
+                  title="ערוך פרטי נהג"
+                >
+                  <Edit3 className="w-4 h-4" />
                 </button>
 
                 {/* הגנה על הורים קבועים ממחיקה מקרית */}
