@@ -43,6 +43,7 @@ export default function App() {
     urgentPickups: 0,
     completedToday: 0,
   });
+  const [masterCount, setMasterCount] = useState(0);
 
   // החלפת ה-URL עם שינוי תפקיד כדי לשמור את המצב המדויק בהוספה למסך הבית
   useEffect(() => {
@@ -78,7 +79,9 @@ export default function App() {
     const updateStatsAndDrivers = () => {
       const allPickups = StorageEngine.getPickups();
       const allDrivers = StorageEngine.getDrivers();
+      const allMaster = StorageEngine.getMasterPickups();
       setDrivers(allDrivers);
+      setMasterCount(allMaster.length);
 
       const urgent = allPickups.filter((p) => p.status === "urgent" && !p.completed).length;
       const completed = allPickups.filter((p) => p.completed).length;
@@ -279,6 +282,75 @@ export default function App() {
 
                 {/* יומן פעילות */}
                 <HistoryLog />
+              </div>
+
+              {/* מקטע 3: קונסולת ניהול לוח בסיס קבוע ומחזורים בתחתית לשונית הורים */}
+              <div className="bg-[#FFFDF6] border-4 border-[#141414] shadow-[4px_4px_0_0_#141414] p-5 md:p-6 text-right font-mono" style={{ direction: "rtl" }}>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-row-reverse text-right">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-amber-950 flex items-center gap-1.5 flex-row-reverse justify-end">
+                      <CalendarCheck className="w-5 h-5 text-amber-900 shrink-0" />
+                      <span>📋 ניהול שבלונת בסיס קבועה / MASTER SCHEDULE BASELINE</span>
+                    </h4>
+                    <p className="text-xs text-slate-700 leading-relaxed font-sans font-bold">
+                      כאן תוכלו לשמור את מערך ההסעות הפעיל שלכם (כרגע ישנן <strong className="text-[#141414] underline text-[13px]">{stats.totalPickups} נסיעות פעילות</strong>) כ&quot;לוח הבסיס הקבוע&quot; של הבית. 
+                      בהתחלת השבוע הבא, לחיצה על <strong className="text-indigo-950">שחזר והתחל שבוע חדש 🔄</strong> תשחזר תמיד את ההסעות ונהגיהן בדיוק לפי המערך הזה!
+                    </p>
+                    <div className="text-[10px] text-slate-500 font-bold font-mono pt-1">
+                      שבלונה פעילה כעת: <strong className="text-amber-800">{masterCount} נסיעות קבועות משוריינות</strong> בלוח הבסיס המאובטח.
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 shrink-0 md:justify-end w-full md:w-auto">
+                    <button
+                      onClick={() => {
+                        const activePickups = StorageEngine.getPickups();
+                        if (activePickups.length === 0) {
+                          alert("❌ לא ניתן לשמור לוח בסיס ריק! אנא הוסיפו מעט נסיעות קבועות בלוח תחילה.");
+                          return;
+                        }
+                        if (confirm(`האם להגדיר את ${activePickups.length} הנסיעות המופיעות כרגע על המסך כסידור הבית הקבוע (לוח בסיס) לשחזור?`)) {
+                          StorageEngine.saveMasterPickups(activePickups);
+                          StorageEngine.addLog(
+                            "שמירת לוח בסיס קבוע",
+                            `ההורים שמרו סידור בית קבוע מעודכן המכיל ${activePickups.length} נסיעות קבועות לשחזור.`,
+                            "parent"
+                          );
+                          StorageEngine.addAlert(
+                            "לוח הבסיס הקבוע עודכן!",
+                            `הסידור עם ${activePickups.length} נסיעות הוגדר וסונכרן בהצלחה לענן!`,
+                            "success"
+                          );
+                          alert("📋 סיימנו! לוח הבסיס השבועי נשמר וסונכרן בהצלחה. כל שחזור שבוע הבא ישוב לנקודה זו! ✨");
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-[#F59E0B] hover:bg-[#D97706] text-white border-2 border-[#141414] shadow-[2px_2px_0_0_#141414] hover:shadow-none active:translate-y-0.5 transition-all flex items-center justify-center gap-1.5 flex-row-reverse cursor-pointer font-sans text-xs font-black"
+                    >
+                      <span>💾 שמור לוח פעיל כלוח בסיס קבוע</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (confirm("האם ברצונכם לאפס את לוח הבסיס הקבוע להגדרות המפעל הראשוניות של האפליקציה?")) {
+                          StorageEngine.resetMasterPickupsToDefault();
+                          StorageEngine.addLog(
+                            "איפוס לוח בסיס",
+                            "לוח הבסיס הקבוע של המערכת אופס להגדרות ברירת המחדל הראשוניות.",
+                            "parent"
+                          );
+                          StorageEngine.addAlert(
+                            "לוח הבסיס אופס לברירת המחדל",
+                            "לוח הבסיס השבועי הקבוע אופס להגדרות ברירת המחדל הראשוניות בהצלחה.",
+                            "success"
+                          );
+                          alert("🔄 לוח הבסיס הקבוע אופס בהצלחה להסעות הראשוניות של המערכת! ✨");
+                        }
+                      }}
+                      className="px-3 py-2 bg-[#E4E3E0] hover:bg-[#D1D0CC] text-slate-800 border-2 border-[#141414] text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <span>🔄 שחזר הגדרות יצרן של הלוח</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}

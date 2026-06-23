@@ -301,6 +301,7 @@ const KEYS = {
   PICKUPS: "kid_sync_pickups_v1",
   LOGS: "kid_sync_logs_v1",
   ALERTS: "kid_sync_alerts_v1",
+  MASTER_PICKUPS: "kid_sync_master_pickups_v1",
 };
 
 // קורא נתונים או מאתחל בערכי ברירת מחדל
@@ -356,6 +357,7 @@ let currentDrivers: Driver[] = loadData(KEYS.DRIVERS, INITIAL_DRIVERS);
 let currentPickups: Pickup[] = loadData(KEYS.PICKUPS, INITIAL_PICKUPS);
 let currentLogs: ActivityLog[] = loadData(KEYS.LOGS, INITIAL_LOGS);
 let currentAlerts: AlertNotification[] = loadData(KEYS.ALERTS, INITIAL_ALERTS);
+let currentMasterPickups: Pickup[] = loadData(KEYS.MASTER_PICKUPS, INITIAL_PICKUPS);
 
 // פונקציית עזר לאתחול (seeding) של אוספים ריקים
 async function seedCollectionIfEmpty(collectionName: string, initialData: any[]) {
@@ -381,6 +383,7 @@ async function startFirebaseSync() {
     await seedCollectionIfEmpty("pickups", INITIAL_PICKUPS);
     await seedCollectionIfEmpty("logs", INITIAL_LOGS);
     await seedCollectionIfEmpty("alerts", INITIAL_ALERTS);
+    await seedCollectionIfEmpty("master_pickups", INITIAL_PICKUPS);
     localStorage.setItem("kid_sync_v1_seeded", "true");
   }
 
@@ -435,6 +438,19 @@ async function startFirebaseSync() {
       list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       currentAlerts = list;
       saveData(KEYS.ALERTS, list);
+      notifyAll();
+    }
+  });
+
+  onSnapshot(collection(db, "master_pickups"), (snapshot) => {
+    const list: Pickup[] = [];
+    snapshot.forEach((doc) => {
+      list.push(doc.data() as Pickup);
+    });
+    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
+    if (list.length > 0 || isSeeded) {
+      currentMasterPickups = list;
+      saveData(KEYS.MASTER_PICKUPS, list);
       notifyAll();
     }
   });
@@ -539,6 +555,25 @@ async function syncAlertsInFirestore(newAlerts: AlertNotification[]) {
   }
 }
 
+async function syncMasterPickupsInFirestore(newMasterPickups: Pickup[]) {
+  try {
+    const snap = await getDocs(collection(db, "master_pickups"));
+    const existingIds = snap.docs.map(doc => doc.id);
+    const newIds = newMasterPickups.map(p => p.id);
+
+    for (const id of existingIds) {
+      if (!newIds.includes(id)) {
+        await deleteDoc(doc(db, "master_pickups", id));
+      }
+    }
+    for (const p of newMasterPickups) {
+      await setDoc(doc(db, "master_pickups", p.id), cleanForFirestore(p));
+    }
+  } catch (err) {
+    console.error("Firestore sync Error (master_pickups):", err);
+  }
+}
+
 // ---------------------------------------------
 // מחלקה סינכרונית לניהול המחסן המדומה (כעת מקושרת ל-Firestore בזמן אמת)
 // ---------------------------------------------
@@ -563,6 +598,21 @@ export const StorageEngine = {
     saveData(KEYS.PICKUPS, pickups);
     notifyAll();
     syncPickupsInFirestore(pickups);
+  },
+
+  getMasterPickups(): Pickup[] {
+    return currentMasterPickups;
+  },
+
+  saveMasterPickups(pickups: Pickup[]) {
+    currentMasterPickups = pickups;
+    saveData(KEYS.MASTER_PICKUPS, pickups);
+    notifyAll();
+    syncMasterPickupsInFirestore(pickups);
+  },
+
+  resetMasterPickupsToDefault() {
+    this.saveMasterPickups(INITIAL_PICKUPS);
   },
 
   getLogs(): ActivityLog[] {

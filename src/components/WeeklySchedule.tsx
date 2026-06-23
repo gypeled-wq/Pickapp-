@@ -81,6 +81,42 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     generalUrl: string;
   } | null>(null);
 
+  // טיימר להתראות איוש נסיעות פעיל להורים
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState(30);
+  const [isAlertScanning, setIsAlertScanning] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimerSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setIsAlertScanning(true);
+          setTimeout(() => setIsAlertScanning(false), 1500);
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const upcomingUnassignedPickups = useMemo(() => {
+    const HEBREW_DAYS_CYCLE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+    const currentJsDayIdx = new Date().getDay(); // 0 (Sunday) to 6 (Saturday)
+
+    return pickups.filter((p) => {
+      if (p.isOneTimeDeleted) return false;
+      const isUnassigned = !p.driverId || p.driverId === "unassigned" || p.driverId === "none";
+      if (!isUnassigned) return false;
+
+      const dayIdx = HEBREW_DAYS_CYCLE.indexOf(p.day);
+      if (dayIdx === -1) return false;
+
+      // בדיקה אם הנסיעה היא להיום (0) או למחר (1)
+      const diff = (dayIdx - currentJsDayIdx + 7) % 7;
+      return diff === 0 || diff === 1;
+    });
+  }, [pickups]);
+
   useEffect(() => {
     setPickups(StorageEngine.getPickups());
     setDrivers(StorageEngine.getDrivers());
@@ -477,34 +513,23 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   };
 
   const executeResetWeek = () => {
-    const currentPickups = StorageEngine.getPickups();
-    const processed = currentPickups
-      .filter((p) => p.isRecurring !== false)
-      .map((p) => {
-        if (p.isOneTimeOverride && p.originalRecurringValues) {
-          return {
-            ...p,
-            time: p.originalRecurringValues.time,
-            driverId: p.originalRecurringValues.driverId,
-            notes: p.originalRecurringValues.notes,
-            status: p.originalRecurringValues.status,
-            babysitterType: p.originalRecurringValues.babysitterType || "none",
-            isOneTimeOverride: false,
-            isOneTimeDeleted: false,
-            originalRecurringValues: undefined,
-            completed: false,
-          };
-        }
-        return {
-          ...p,
-          isOneTimeDeleted: false,
-          completed: false,
-        };
-      });
+    const masterBaseline = StorageEngine.getMasterPickups();
+    const processed = masterBaseline.map((p) => {
+      return {
+        ...p,
+        completed: false,
+        isOneTimeDeleted: false,
+        isOneTimeOverride: false,
+        originalRecurringValues: undefined,
+        notes: p.notes || "",
+        status: p.status || "regular",
+        babysitterType: p.babysitterType || "none"
+      };
+    });
 
     StorageEngine.savePickups(processed);
-    StorageEngine.addLog("איפוס שבוע הבא", "בוצע איפוס גלובלי והתחלת שבוע חדש במערכת על ידי ההורים.", "parent");
-    StorageEngine.addAlert("שבוע חדש התחיל!", "כל האיסופים הקבועים שוחזרו ואופסו מביצוע. מוכנים לשבוע החדש!", "success");
+    StorageEngine.addLog("איפוס שבוע הבא", "בוצע איפוס גלובלי והתחלת שבוע חדש במערכת מלוח הבסיס השמור.", "parent");
+    StorageEngine.addAlert("שבוע חדש התחיל!", "כל איסופי הלוח הקבוע שוחזרו מלוח הבסיס השמור ואופסו מביצוע בהצלחה!", "success");
     setResetWeekConfirmOpen(false);
   };
 
@@ -679,6 +704,68 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
   return (
     <div className="space-y-6" id="scheduling_dashboard_module">
+      {/* באנר תזכורת חכם ומבוסס טיימר להורים על איסופים לא מאויישים בימים הקרובים */}
+      {userRole === "parent" && upcomingUnassignedPickups.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#FFF1F2] border-4 border-[#F43F5E] shadow-[4px_4px_0_0_#F43F5E] p-4 text-right font-mono"
+          style={{ direction: "rtl" }}
+          id="upcoming_unassigned_timer_reminder"
+        >
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 flex-row-reverse">
+            <div className="flex items-start md:items-center gap-3 flex-row-reverse text-right">
+              <div className="p-2 bg-[#FECDD3] border-2 border-[#141414] rounded shrink-0 animate-bounce">
+                <AlertTriangle className="w-5 h-5 text-[#E11D48]" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-rose-950 flex items-center gap-2 flex-row-reverse justify-end">
+                  <span>⚠️ תזכורת דחופה: נסיעות ללא נהג משויך היום או מחר!</span>
+                  {isAlertScanning ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-[#FDA4AF] px-1.5 py-0.5 border border-[#141414] rounded text-rose-950 animate-pulse">
+                      <span>🔄</span> סורק...
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-white/80 px-1.5 py-0.5 border border-slate-300 rounded text-slate-500">
+                      <span>⏱️</span> עדכון בעוד {timerSecondsLeft} ש׳
+                    </span>
+                  )}
+                </h4>
+                <p className="text-xs text-rose-950 font-sans font-bold leading-relaxed">
+                  נמצאו <strong className="text-rose-600 underline font-black">{upcomingUnassignedPickups.length} נסיעות קרובות</strong> ללא אף נהג מלווה מוגדר. אנא שייכו נהג בהקדם כדי למנוע שיבושים!
+                </p>
+                
+                {/* רשימת הנסיעות החסרות */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {upcomingUnassignedPickups.map((p, idx) => (
+                    <div 
+                      key={p.id || idx} 
+                      className="inline-flex items-center gap-1.5 bg-white border border-rose-400 px-2 py-0.5 rounded text-[10px] text-rose-950 font-bold font-mono shadow-[1px_1px_0_0_#FDA4AF]"
+                    >
+                      <span>👦🧒</span>
+                      <strong>{p.childName}:</strong>
+                      <span>יום {p.day} ({p.time})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* כפתור הנעה לפעולה מהירה */}
+            <button
+              onClick={() => {
+                const target = document.getElementById("mobile_day_layout") || document.getElementById("desktop_scheduling_grid");
+                target?.scrollIntoView({ behavior: "smooth" });
+                alert("אנא לחצו על כפתורי ה-עריכה בכרטיסי הנסיעה המסומלים ב-&quot;טרם שויך&quot; כדי לבחור להן נהג מתאים!");
+              }}
+              className="w-full md:w-auto px-3 py-1.5 bg-[#E11D48] text-white hover:bg-[#BE123C] font-black text-[11px] border-2 border-[#141414] shadow-[2px_2px_0_0_#141414] hover:shadow-none active:translate-y-0.5 transition-all text-center flex items-center justify-center gap-1.5 flex-row-reverse cursor-pointer uppercase shrink-0"
+            >
+              <span>שייך נהגים כעת ✏️</span>
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* לוח ניהול שבועי להורים - התחלת שבוע חדש */}
       {userRole === "parent" && (
         <div className="bg-[#EEF2FF] border-4 border-[#141414] tech-shadow p-3 md:p-5 text-right font-mono" style={{ direction: "rtl" }}>
