@@ -21,7 +21,10 @@
         "status": "string",
         "notes": "string",
         "completed": "boolean",
-        "babysitterType": "string"
+        "babysitterType": "string",
+        "isRecurring": "boolean",
+        "isOneTimeOverride": "boolean",
+        "originalRecurringValues": "object"
       }
     },
     "logs": {

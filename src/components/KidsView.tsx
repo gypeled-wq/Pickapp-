@@ -99,10 +99,10 @@ export default function KidsView() {
       <div className="bg-[#E4E3E0] border-4 border-[#141414] p-6 shadow-[4px_4px_0_0_#141414] relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-4 flex-row-reverse font-mono">
         <div className="relative space-y-2 text-center md:text-right">
           <h2 className="text-2xl font-black flex items-center gap-2 justify-center md:justify-end flex-row-reverse">
-            <Smile className="w-8 h-8 text-black animate-bounce" />
-            <span>היי חמודים! איפה אתם נמצאים?</span>
+            <Smile className="hidden md:block w-8 h-8 text-black animate-bounce" />
+            <span className="hidden md:inline">היי חמודים! איפה אתם נמצאים?</span>
           </h2>
-          <p className="text-xs text-slate-700 font-bold">
+          <p className="hidden md:block text-xs text-slate-700 font-bold">
             מצב תצוגת ילדים נוח וברור ללא אפשרות לשנות בלו״ז. בחרו את השם שלכם:
           </p>
         </div>

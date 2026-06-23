@@ -24,6 +24,16 @@ export interface Pickup {
   notes: string; // הערות לחוג, מיקום וכו׳
   completed: boolean; // האם הושלם בהצלחה
   babysitterType?: "none" | "babysitter_only" | "both"; // סוג בייביסיטר: ללא, רק בייביסיטר, גם וגם
+  isRecurring?: boolean; // האם מדובר באירוע קבוע (חוזר מדי שבוע)
+  isOneTimeOverride?: boolean; // האם זהו שינוי חד-פעמי של אירוע קבוע
+  isOneTimeDeleted?: boolean; // האם מדובר בביטול חד-פעמי לשבוע הנוכחי בלבד קבוע בלי למחוק פיזית
+  originalRecurringValues?: { // ערכי המקור הקבועים לשחזור מהיר
+    time: string;
+    driverId: string;
+    notes: string;
+    status: PickupStatus;
+    babysitterType?: "none" | "babysitter_only" | "both";
+  };
 }
 
 export interface ActivityLog {
@@ -44,6 +54,6 @@ export interface AlertNotification {
   read: boolean;
 }
 
-export const DAYS_OF_WEEK = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"];
+export const DAYS_OF_WEEK = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 export const DEFAULT_CHILDREN = ["איתי", "נועה", "עומר"];

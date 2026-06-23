@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN } from "../types";
 import { StorageEngine, subscribeToStore } from "../data";
 import { Calendar, Clock, User, AlertTriangle, Edit3, Trash2, CheckCircle, ShieldAlert, Plus, HelpCircle, Phone, Sparkles, PlusCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { toPng } from "html-to-image";
 
 interface WeeklyScheduleProps {
   userRole: "parent" | "driver" | "child";
@@ -20,9 +21,26 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const [selectedDayTab, setSelectedDayTab] = useState("ראשון"); // For mobile day tabs
   const [driverFilter, setDriverFilter] = useState<"only-mine" | "all">("only-mine"); // For driver focus view
 
+  // אישור פנימי לביטול/מחיקה ואיפוס שבוע ללא window.confirm (בשל חסימת iframe)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [resetWeekConfirmOpen, setResetWeekConfirmOpen] = useState(false);
+
+  // מצבי ייצוא תמונה
+  const [isExporting, setIsExporting] = useState(false);
+
   // מודאל עריכה
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPickup, setEditingPickup] = useState<Pickup | null>(null);
+
+  // תמיכה באירועים קבועים ושינויים חד-פעמיים
+  const [formIsRecurring, setFormIsRecurring] = useState(true);
+  const [formOverrideType, setFormOverrideType] = useState<"permanent" | "onetime">("permanent");
+  const [driverNotificationPending, setDriverNotificationPending] = useState<{
+    driver: Driver;
+    pickup: Pickup;
+    actionType: "edit" | "delete";
+    oldPickup?: { day: string; time: string; childName: string; notes: string };
+  } | null>(null);
 
   // ערכי טופס
   const [formDay, setFormDay] = useState("ראשון");
@@ -66,6 +84,26 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     });
     return unsubscribe;
   }, []);
+
+  // במצב נהגים להציג קודם את הילדים שיש לנהג נסיעות איתם השבוע
+  const displayChildren = useMemo(() => {
+    if (userRole === "driver" && activeDriverId) {
+      const hasRideWithDriver = (childName: string) => {
+        return pickups.some(
+          (p) =>
+            p.driverId === activeDriverId &&
+            p.childName.split(",").map(c => c.trim()).includes(childName)
+        );
+      };
+
+      return [...DEFAULT_CHILDREN].sort((a, b) => {
+        const aHas = hasRideWithDriver(a) ? 1 : 0;
+        const bHas = hasRideWithDriver(b) ? 1 : 0;
+        return bHas - aHas;
+      });
+    }
+    return DEFAULT_CHILDREN;
+  }, [pickups, activeDriverId, userRole]);
 
   // שליחת תזכורת נסיעה או שינוי דרך הווטסאפ (WhatsApp)
   const shareOnWhatsApp = (pickup: Pickup) => {
@@ -111,7 +149,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     const driverObj = drivers.find(d => d.id === driverId);
     if (!driverObj) return;
 
-    const myPickups = pickups.filter(p => p.driverId === driverId);
+    const myPickups = pickups.filter(p => p.driverId === driverId && !p.isOneTimeDeleted);
     if (myPickups.length === 0) {
       alert("אין לך נסיעות משויכות השבוע לייצוא ליומן!");
       return;
@@ -192,7 +230,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     const driverObj = drivers.find(d => d.id === driverId);
     if (!driverObj) return;
 
-    const myPickups = pickups.filter(p => p.driverId === driverId);
+    const myPickups = pickups.filter(p => p.driverId === driverId && !p.isOneTimeDeleted);
     if (myPickups.length === 0) {
       alert("אין לך נסיעות משויכות השבוע לשיתוף!");
       return;
@@ -238,6 +276,8 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     setFormStatus("regular");
     setFormNotes("");
     setFormBabysitterType("none");
+    setFormIsRecurring(true);
+    setFormOverrideType("permanent");
     setIsQuickDriver(false);
     setIsFormOpen(true);
   };
@@ -253,6 +293,8 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     setFormStatus(pickup.status);
     setFormNotes(pickup.notes);
     setFormBabysitterType(pickup.babysitterType || "none");
+    setFormIsRecurring(pickup.isRecurring !== false);
+    setFormOverrideType(pickup.isOneTimeOverride ? "onetime" : "permanent");
     setIsQuickDriver(false);
     setIsFormOpen(true);
   };
@@ -281,9 +323,26 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     }
 
     const childNamesString = formChildren.join(", ");
+    let finalPickup: Pickup;
+
     if (editingPickup) {
-      // עדכון הקיים
-      StorageEngine.updatePickup({
+      const oldDriverId = editingPickup.driverId;
+      const isOneTime = formOverrideType === "onetime" && formIsRecurring;
+
+      let originalVals = editingPickup.originalRecurringValues;
+      if (isOneTime && !originalVals) {
+        originalVals = {
+          time: editingPickup.time,
+          driverId: editingPickup.driverId,
+          notes: editingPickup.notes,
+          status: editingPickup.status,
+          babysitterType: editingPickup.babysitterType || "none",
+        };
+      } else if (!isOneTime) {
+        originalVals = undefined;
+      }
+
+      finalPickup = {
         ...editingPickup,
         day: formDay,
         childName: childNamesString,
@@ -292,10 +351,49 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         status: formStatus,
         notes: formNotes,
         babysitterType: formBabysitterType,
-      });
+        isRecurring: formIsRecurring,
+        isOneTimeOverride: isOneTime,
+        originalRecurringValues: originalVals,
+      };
+
+      StorageEngine.updatePickup(finalPickup);
+
+      // זיהוי שינויים ודיווח לנהג המוגדר
+      if (oldDriverId && oldDriverId !== "unassigned") {
+        const hasMajorChanges =
+          editingPickup.time !== formTime ||
+          editingPickup.day !== formDay ||
+          editingPickup.driverId !== targetDriverId ||
+          editingPickup.childName !== childNamesString ||
+          editingPickup.notes !== formNotes;
+
+        if (hasMajorChanges) {
+          const matchedDriver = drivers.find((d) => d.id === oldDriverId);
+          if (matchedDriver) {
+            // הוספת התראת מערכת ולוג מובנה לנהג
+            StorageEngine.addAlert(
+              `עדכון פרטי נסיעה: ${childNamesString}`,
+              `הנסיעה ביום ${formDay} בשעה ${formTime} עודכנה על ידי ההורים.`,
+              "urgent"
+            );
+            
+            setDriverNotificationPending({
+              driver: matchedDriver,
+              pickup: finalPickup,
+              actionType: "edit",
+              oldPickup: {
+                day: editingPickup.day,
+                time: editingPickup.time,
+                childName: editingPickup.childName,
+                notes: editingPickup.notes,
+              },
+            });
+          }
+        }
+      }
     } else {
       // יצירת חדש
-      StorageEngine.addPickup({
+      finalPickup = StorageEngine.addPickup({
         day: formDay,
         childName: childNamesString,
         time: formTime,
@@ -304,6 +402,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         notes: formNotes,
         completed: false,
         babysitterType: formBabysitterType,
+        isRecurring: formIsRecurring,
       });
     }
 
@@ -312,15 +411,153 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
   const handleDeletePickup = (id: string) => {
     if (userRole !== "parent") return; // מורשה להורים בלבד
-    if (confirm("האם למחוק או לבטל הסעה זו לחלוטין מלו״ז השבוע?")) {
-      StorageEngine.deletePickup(id);
+    setDeleteConfirmId(id);
+  };
+
+  const executeDeletePickup = (id: string, mode: "onetime" | "permanent" = "permanent") => {
+    const pickup = pickups.find((p) => p.id === id);
+    if (pickup) {
+      const oldDriverId = pickup.driverId;
+      
+      if (mode === "onetime") {
+        const originalVals = pickup.originalRecurringValues || {
+          time: pickup.time,
+          driverId: pickup.driverId,
+          notes: pickup.notes,
+          status: pickup.status,
+          babysitterType: pickup.babysitterType || "none",
+        };
+        StorageEngine.updatePickup({
+          ...pickup,
+          isOneTimeOverride: true,
+          isOneTimeDeleted: true,
+          originalRecurringValues: originalVals,
+        });
+
+        StorageEngine.addLog(
+          "ביטול חד-פעמי",
+          `בוטל זמנית (חד-פעמי לשבוע זה בלבד) האיסוף של ${pickup.childName} ביום ${pickup.day} בשעה ${pickup.time}.`,
+          "parent",
+          pickup.childName
+        );
+        StorageEngine.addAlert(
+          "ביטול חד-פעמי",
+          `ההסעה של ${pickup.childName} ביום ${pickup.day} בוטלה לשבוע הנוכחי בלבד (תוחזר אוטומטית בשבוע הבא).`,
+          "success"
+        );
+      } else {
+        StorageEngine.deletePickup(id);
+      }
+
+      if (oldDriverId && oldDriverId !== "unassigned") {
+        const matchedDriver = drivers.find((d) => d.id === oldDriverId);
+        if (matchedDriver) {
+          StorageEngine.addAlert(
+            `ביטול נסיעה: ${pickup.childName}`,
+            `הנסיעה של יום ${pickup.day} בשעה ${pickup.time} בוטלה על ידי ההורים.`,
+            "urgent"
+          );
+
+          setDriverNotificationPending({
+            driver: matchedDriver,
+            pickup: pickup,
+            actionType: "delete",
+          });
+        }
+      }
+    }
+    setDeleteConfirmId(null);
+  };
+
+  const executeResetWeek = () => {
+    const currentPickups = StorageEngine.getPickups();
+    const processed = currentPickups
+      .filter((p) => p.isRecurring !== false)
+      .map((p) => {
+        if (p.isOneTimeOverride && p.originalRecurringValues) {
+          return {
+            ...p,
+            time: p.originalRecurringValues.time,
+            driverId: p.originalRecurringValues.driverId,
+            notes: p.originalRecurringValues.notes,
+            status: p.originalRecurringValues.status,
+            babysitterType: p.originalRecurringValues.babysitterType || "none",
+            isOneTimeOverride: false,
+            isOneTimeDeleted: false,
+            originalRecurringValues: undefined,
+            completed: false,
+          };
+        }
+        return {
+          ...p,
+          isOneTimeDeleted: false,
+          completed: false,
+        };
+      });
+
+    StorageEngine.savePickups(processed);
+    StorageEngine.addLog("איפוס שבוע הבא", "בוצע איפוס גלובלי והתחלת שבוע חדש במערכת על ידי ההורים.", "parent");
+    StorageEngine.addAlert("שבוע חדש התחיל!", "כל האיסופים הקבועים שוחזרו ואופסו מביצוע. מוכנים לשבוע החדש!", "success");
+    setResetWeekConfirmOpen(false);
+  };
+
+  const handleExportImage = async () => {
+    setIsExporting(true);
+    try {
+      const node = document.getElementById("weekly_grid_export_target");
+      if (!node) {
+        setIsExporting(false);
+        return;
+      }
+      
+      // Because the element is "hidden md:block", on mobile screens it is "display: none".
+      // Reading from a display:none element yields an empty white page.
+      // We clone the node, style it to be visible but off-screen, render the clone, then remove it.
+      const clone = node.cloneNode(true) as HTMLElement;
+      clone.style.position = "absolute";
+      clone.style.top = "-9999px";
+      clone.style.left = "-9999px";
+      clone.style.width = "1200px";
+      clone.style.display = "block";
+      clone.classList.remove("hidden");
+      clone.classList.remove("md:block");
+      document.body.appendChild(clone);
+
+      // Wait a tiny bit for the browser to lay out the cloned node
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      const dataUrl = await toPng(clone, {
+        backgroundColor: "#FFFDF9",
+        style: {
+          transform: "scale(1)",
+          transformOrigin: "top left",
+        },
+        width: 1200,
+        height: clone.scrollHeight || 1000,
+        cacheBust: true,
+      });
+
+      document.body.removeChild(clone);
+
+      const link = document.createElement("a");
+      link.download = `Family_Shuttle_Weekly_Schedule_${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+
+      StorageEngine.addLog("ייצוא לוח כתמונה", "יוצאה תמונה רחבה של הלוח השבועי בהצלחה.", "parent");
+      StorageEngine.addAlert("ייצוא בהצלחה! 🎉", "הלוח השבועי יוצר כתמונה רחבה והורד למכשירכם.", "success");
+    } catch (err) {
+      console.error("Image export failed:", err);
+      StorageEngine.addAlert("שגיאה בייצוא", "התרחשה שגיאה במהלך יצירת התמונה. אנא נסו שוב.", "urgent");
+    } finally {
+      setIsExporting(false);
     }
   };
 
   const handleToggleCompletion = (id: string) => {
     if (userRole === "child") return; // ילדים יכולים רק לצפות
 
-    const pickupItem = pickups.find(p => p.id === id);
+    const pickupItem = pickups.find((p) => p.id === id);
     if (userRole === "driver" && activeDriverId && pickupItem && pickupItem.driverId !== activeDriverId) {
       alert("שגיאת הרשאה: נהגים מורשים לסמן השלמה עבור נסיעות המשויכות אליהם בלבד!");
       return;
@@ -424,7 +661,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
   // שליפת כל האיסופים הרלוונטיים ליום וילד ספציפיים (שלא תהיה הגבלה יומית)
   const getPickupsFor = (day: string, child: string): Pickup[] => {
-    return pickups.filter((p) => p.day === day && p.childName.split(",").map(c => c.trim()).includes(child));
+    return pickups.filter((p) => p.day === day && p.childName.split(",").map(c => c.trim()).includes(child) && !p.isOneTimeDeleted);
   };
 
   // שליפת איסוף יחיד (הראשון) לצורכי תאימות במידת הצורך
@@ -432,16 +669,41 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     return getPickupsFor(day, child)[0];
   };
 
-  const unassignedPickups = pickups.filter(p => !p.driverId || p.driverId === "unassigned");
+  const unassignedPickups = pickups.filter(p => (!p.driverId || p.driverId === "unassigned") && !p.isOneTimeDeleted);
 
   return (
     <div className="space-y-6" id="scheduling_dashboard_module">
+      {/* לוח ניהול שבועי להורים - התחלת שבוע חדש */}
+      {userRole === "parent" && (
+        <div className="bg-[#EEF2FF] border-4 border-[#141414] tech-shadow p-3 md:p-5 text-right font-mono" style={{ direction: "rtl" }}>
+          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 md:gap-4 flex-row-reverse text-right">
+            <div className="hidden md:block space-y-1">
+              <h4 className="text-sm font-black text-indigo-950 flex items-center gap-1.5 flex-row-reverse justify-end">
+                <span>🔄 אתחול מחזור שבועי הבא / START NEW WEEK</span>
+              </h4>
+              <p className="text-xs text-indigo-950/90 leading-relaxed font-sans font-bold">
+                מעבר קל לשבוע הבא: הכפתור ימחק אירועים חד-פעמיים שפג תוקפם השבוע, ישחזר את הגדרות המקור הקבועות של אירועים שעברו שינוי זמני, וינקה את סימוני ה-V של איסופים שבוצעו כדי לעבוד נקי בשבוע החדש!
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setResetWeekConfirmOpen(true);
+              }}
+              className="w-full md:w-auto px-4 py-2.5 md:py-2 border-2 border-[#141414] bg-indigo-950 text-white hover:bg-white hover:text-black font-black text-xs shadow-[3px_3px_0_0_#141414] hover:shadow-none active:translate-y-0.5 transition-all flex items-center justify-center gap-1.5 flex-row-reverse cursor-pointer shrink-0"
+              id="btn_start_new_week"
+            >
+              <span>שחזר והתחל שבוע חדש 🔄</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* כפתור דיווח מהיר על שינויים עליון */}
       {(userRole === "parent" || userRole === "driver") && (
         <div className="flex flex-wrap items-center justify-between gap-4 bg-[#FFD4D4] border-4 border-[#141414] tech-shadow p-5 flex-row-reverse text-right">
           <div className="space-y-1">
             <h4 className="text-sm font-black text-red-900 flex items-center gap-1.5 justify-end flex-row-reverse uppercase">
-              <ShieldAlert className="w-4 h-4 text-red-700 animate-pulse" />
+              <ShieldAlert className="hidden md:inline w-4 h-4 text-red-700 animate-pulse" />
               <span className="hidden sm:inline">עמדת עדכונים ושינויי הסעות של הרגע האחרון / EMERGENCY URGENT DISPATCH</span>
             </h4>
             <p className="hidden sm:block text-xs text-red-955 font-bold">كل שינוי או ביטול כאן מעדכן מיידית את המערכת ושולח דוח התראות להורים ולנהגים</p>
@@ -484,7 +746,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                   <div className="text-xs text-slate-700 space-y-1">
                     {p.notes ? <p className="italic">🎯 &quot;{p.notes}&quot;</p> : <p className="text-slate-400">אין הערות מיוחדות</p>}
                     {p.babysitterType && p.babysitterType !== "none" && (
-                      <span className="inline-block mt-1 font-black text-[10px] bg-indigo-50 text-indigo-950 border border-indigo-300 px-1.5 py-0.5 rounded">
+                      <span className="inline-block mt-1 font-black text-[10px] bg-indigo-50 text-[#141414] border border-indigo-300 px-1.5 py-0.5 rounded">
                         🧸 {p.babysitterType === "babysitter_only" ? "בייביסיטר בלבד" : "איסוף + בייביסיטר"}
                       </span>
                     )}
@@ -520,14 +782,26 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       )}
 
       {/* כותרת המדור ופיקוח */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b-4 border-[#141414] pb-4 flex-row-reverse">
-        <div className="text-right">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b-4 border-[#141414] pb-4 flex-row-reverse">
+        <div className="text-right w-full md:w-auto">
           <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-[#141414] text-[#E4E3E0] px-2 py-0.5 border border-[#141414]">
             לוח בקרה שבועי / WEEKLY CONTROL GRID
           </span>
-          <h2 className="hidden sm:block text-2xl font-black text-[#141414] mt-1 font-serif uppercase italic">תוכנית האיסופים השבועית</h2>
+          <h2 className="hidden sm:block text-2xl font-black text-[#141414] mt-1 font-serif uppercase italic font-sans">תוכנית האיסופים השבועית</h2>
           <p className="hidden sm:block text-xs text-slate-700 mt-1 font-mono">מפגש שבועי המפצל את ההסעות לפי 3 הילדים. כחול = קבוע, כתום/אדום = דחוף.</p>
         </div>
+
+        {/* כפתור תיאום נסיעה מרכזי להורים במכשיר שולחן עבודה */}
+        {userRole === "parent" && (
+          <button
+            onClick={() => openAddForm("ראשון", "איתי")}
+            className="hidden md:flex px-6 py-3 bg-[#EEF2FF] hover:bg-[#141414] text-indigo-950 hover:text-white font-black text-xs border-4 border-[#141414] shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 transition-all items-center gap-1.5 flex-row-reverse cursor-pointer font-sans shrink-0 uppercase tracking-wide"
+            id="parent_desktop_add_pickup_central_btn"
+          >
+            <Plus className="w-4 h-4 text-indigo-900" />
+            <span>➕ תיאום נסיעה חדשה / CREATE NEW ENTRY</span>
+          </button>
+        )}
 
         {/* טאבים על ימים במובייל / סינונים */}
         <div className="md:hidden flex gap-1 bg-slate-150 p-1 rounded-xl w-full overflow-x-auto select-none" style={{ direction: "rtl" }}>
@@ -552,8 +826,8 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         <div className="bg-[#E4E3E0] border-4 border-[#141414] p-4 flex flex-col md:flex-row justify-between items-center gap-4 text-right" style={{ direction: "rtl" }}>
           <div className="space-y-1">
             <h4 className="text-sm font-black text-[#141414] uppercase flex items-center gap-1.5 flex-row-reverse">
-              <Sparkles className="w-4 h-4 text-indigo-600 animate-bounce" />
-              <span>מצב סינון לוח שבועי / WEEKLY CONTROL MODE</span>
+              <Sparkles className="hidden md:inline w-4 h-4 text-indigo-600 animate-bounce" />
+              <span className="hidden md:inline">מצב סינון לוח שבועי / WEEKLY CONTROL MODE</span>
             </h4>
             <p className="hidden sm:block text-xs text-slate-700 font-medium">כנהג משפחתי פעיל, באפשרותך לסנן את הלוח כדי להתרכז רק במשימות שלך השבוע, או לצפות בכלל נסיעות הבית.</p>
           </div>
@@ -563,7 +837,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
               className={`px-4 py-2 text-xs font-black transition-all cursor-pointer ${
                 driverFilter === "only-mine"
                   ? "bg-[#141414] text-white"
-                  : "bg-white text-slate-700 hover:bg-[#F2F2EF]"
+                  : "bg-white text-slate-705 hover:bg-[#F2F2EF]"
               }`}
             >
               רק הנסיעות שלי השבוע 🚗
@@ -573,7 +847,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
               className={`px-4 py-2 text-xs font-black transition-all border-r-2 border-[#141414] cursor-pointer ${
                 driverFilter === "all"
                   ? "bg-[#141414] text-white"
-                  : "bg-white text-slate-700 hover:bg-[#F2F2EF]"
+                  : "bg-white text-slate-705 hover:bg-[#F2F2EF]"
               }`}
             >
               כל הנסיעות המשפחתיות 🌐
@@ -588,7 +862,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             <h5 className="text-xs font-bold text-amber-950 flex items-center gap-1 flex-row-reverse">
               <span className="hidden sm:inline">📅 סנכרון ונוחות מובייל / LOCAL CALENDAR & SHARE</span>
             </h5>
-            <p className="hidden sm:block text-[11px] text-amber-950/80 leading-relaxed">באפשרותך לייצא את הנסיעות השבועות שלך ישירות ליומן המקומי במכשיר הנייד (כמו Google Calendar או Apple Calendar) או לשתף את כל הלוח שלך בקבוצה המשפחתית בוואטסאפ.</p>
+            <p className="hidden sm:block text-[11px] text-amber-950/80 leading-relaxed font-bold">באפשרותך לייצא את הנסיעות השבועות שלך ישירות ליומן המקומי במכשיר הנייד (כמו Google Calendar או Apple Calendar) או לשתף את כל הלוח שלך בקבוצה המשפחתית בוואטסאפ.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
             <button
@@ -607,13 +881,13 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         </div>
       )}
 
-         {/* תצוגת גריד מלאה לשולחן עבודה (RTL Desktop Grid) */}
-      <div className="hidden md:block overflow-x-auto" id="desktop_weekly_grid">
+      {/* תצוגת גריד מלאה לשולחן עבודה (RTL Desktop Grid) */}
+      <div className="hidden md:block overflow-x-auto p-4 bg-[#FFFDF9] border-4 border-[#141414] tech-shadow" id="weekly_grid_export_target">
         <table className="w-full text-right border-4 border-[#141414] border-collapse bg-white font-mono">
           <thead>
             <tr className="border-b-4 border-[#141414] bg-[#D1D0CC]">
               <th className="py-3 px-4 text-xs font-black text-[#141414] w-28 border-l-2 border-[#141414]">יום בשבוע</th>
-              {DEFAULT_CHILDREN.map((child) => (
+              {displayChildren.map((child) => (
                 <th key={child} className="py-3 px-4 text-sm font-black text-[#141414] text-center w-80 border-l-2 border-[#141414] last:border-l-0">
                   <div className="flex flex-col items-center">
                     <span className="bg-[#141414] text-white px-3 py-1 font-bold border border-[#141414] tracking-wider">
@@ -636,7 +910,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                 </td>
 
                 {/* משבצות הילדים */}
-                {DEFAULT_CHILDREN.map((child) => {
+                {displayChildren.map((child) => {
                   let items = getPickupsFor(day, child);
 
                   // סינון לנהג הנוכחי
@@ -712,6 +986,47 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                                       </span>
                                     </span>
                                   </div>
+                                )}
+
+                                {/* אינדיקטור שבועי / שינוי חד פעמי */}
+                                {item.isOneTimeOverride ? (
+                                  <div className="mt-1.5 flex flex-row-reverse flex-wrap items-center justify-start gap-1">
+                                    <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-500 text-amber-950 font-black text-[9.5px] px-1.5 py-0.5 rounded flex-row-reverse shadow-[1px_1px_0_0_#141414]">
+                                      <span>⚡</span>
+                                      <span>שינוי חד-פעמי השבוע</span>
+                                    </span>
+                                    {userRole === "parent" && (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm("האם להחזיר את ההסעה הזו להגדרות הקבועות המקוריות שלה?")) {
+                                            StorageEngine.updatePickup({
+                                              ...item,
+                                              time: item.originalRecurringValues?.time ?? item.time,
+                                              driverId: item.originalRecurringValues?.driverId ?? item.driverId,
+                                              notes: item.originalRecurringValues?.notes ?? item.notes,
+                                              status: item.originalRecurringValues?.status ?? item.status,
+                                              babysitterType: item.originalRecurringValues?.babysitterType ?? item.babysitterType,
+                                              isOneTimeOverride: false,
+                                              originalRecurringValues: undefined,
+                                            });
+                                          }
+                                        }}
+                                        className="text-[9.5px] font-black text-amber-900 hover:text-black cursor-pointer bg-white px-1.5 py-0.5 border border-amber-300 rounded shadow-[1px_1px_0_0_#141414]"
+                                        title="בטל חריגה ושחזר ערכי קבוע מקוריים"
+                                      >
+                                        ↩️ שחזר לקבוע
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  item.isRecurring !== false && (
+                                    <div className="mt-1.5 text-right font-sans">
+                                      <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-350 text-slate-800 font-bold text-[9px] px-2 py-0.5 rounded flex-row-reverse">
+                                        <span>🔄</span>
+                                        <span>אירוע שבועי קבוע</span>
+                                      </span>
+                                    </div>
+                                  )
                                 )}
 
                                 {/* פרטי הנהג והרכב */}
@@ -830,32 +1145,11 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                             );
                           })}
 
-                          {/* כפתור הוספה נוספת מהיר להורים */}
-                          {userRole === "parent" && (
-                            <button
-                              onClick={() => openAddForm(day, child)}
-                              className="w-full py-2 border-2 border-dashed border-[#141414] hover:bg-[#D1D0CC]/35 text-[#141414] text-xs font-black transition-all flex items-center justify-center gap-1.5 bg-white cursor-pointer"
-                            >
-                              <Plus className="w-4 h-4 text-slate-700" />
-                              <span>הוסף נסיעה נוספת ליום {day}</span>
-                            </button>
-                          )}
                         </div>
                       ) : (
-                        /* מקום ריק - אפשרות הוספה להורים */
-                        userRole === "parent" ? (
-                          <button
-                            onClick={() => openAddForm(day, child)}
-                            className="w-full py-6 border-2 border-dashed border-[#141414] hover:bg-[#D1D0CC]/35 text-[#141414] text-xs font-black uppercase transition-all flex flex-col items-center justify-center gap-1.5 bg-white cursor-pointer"
-                          >
-                            <PlusCircle className="w-5 h-5 text-slate-700" />
-                            <span>תיאום איסוף {child}</span>
-                          </button>
-                        ) : (
-                          <div className="w-full py-6 border-2 border-dashed border-slate-300 text-center text-slate-500 font-mono text-xs italic bg-[#F2F2EF]">
-                            אין עדכון להסעה
-                          </div>
-                        )
+                        <div className="w-full py-6 border-2 border-dashed border-slate-300 text-center text-slate-500 font-mono text-xs italic bg-[#F2F2EF]">
+                          אין עדכון להסעה
+                        </div>
                       )}
                     </td>
                   );
@@ -868,149 +1162,234 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
       {/* תצוגת מובייל יומית (Mobile View only selected Day Tab) */}
       <div className="md:hidden space-y-4 font-mono" id="mobile_day_layout">
-        <h3 className="text-sm font-black text-[#141414] text-right uppercase border-r-4 border-[#141414] pr-2">הסעות ליום {selectedDayTab} / DAILY LOG:</h3>
+        <div className="flex flex-col gap-2.5">
+          <h3 className="text-sm font-black text-[#141414] text-right uppercase border-r-4 border-[#141414] pr-2">הסעות ליום {selectedDayTab} / DAILY LOG:</h3>
+          
+          {/* כפתור הוספה מרכזי להורים לתיאום קל ממקום אחד (יבקש יום, ילד, שעה וכו') */}
+          {userRole === "parent" && (
+            <button
+              onClick={() => openAddForm(selectedDayTab, "איתי")}
+              className="w-full py-3 bg-[#EEF2FF] hover:bg-white text-indigo-950 hover:text-black font-black text-xs border-2 border-dashed border-[#141414] shadow-[3px_3px_0_0_#141414] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 flex-row-reverse cursor-pointer font-sans"
+              id="parent_mobile_add_pickup_central_btn"
+            >
+              <Plus className="w-4 h-4 text-indigo-900" />
+              <span>➕ תיאום נסיעה חדשה (בחירת יום, שעה וילד בטופס)</span>
+            </button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 gap-4">
           {DEFAULT_CHILDREN.map((child) => {
-            let item = getPickupFor(selectedDayTab, child);
+            let items = getPickupsFor(selectedDayTab, child);
 
             // סינון במובייל לנהג הפעיל
-            if (item && userRole === "driver" && activeDriverId && driverFilter === "only-mine") {
-              if (item.driverId !== activeDriverId) {
-                item = undefined;
-              }
+            if (userRole === "driver" && activeDriverId && driverFilter === "only-mine") {
+              items = items.filter(item => item.driverId === activeDriverId);
             }
-
-            const driver = item ? drivers.find((d) => d.id === item.driverId) : null;
 
             return (
               <div key={child} className="bg-white border-2 border-[#141414] p-4 text-right shadow-[2px_2px_0_0_#141414]">
                 <div className="border-b-2 border-[#141414] pb-2 mb-3 flex justify-between items-center flex-row-reverse">
                   <span className="font-black text-[#141414] text-sm uppercase">עבור: {child} / FOR {child.toUpperCase()}</span>
-                  <span className="text-[10px] bg-[#D1D0CC] text-[#141414] border border-[#141414] px-1.5 py-0.5 font-bold">יום {selectedDayTab}</span>
+                  <span className="text-[10px] bg-[#D1D0CC] text-[#141414] border border-[#141414] px-1.5 py-0.5 font-bold font-mono">יום {selectedDayTab}</span>
                 </div>
 
-                {item ? (
-                  <div className="space-y-3.5">
-                    <div className="flex justify-between items-center flex-row-reverse">
-                      <span className="inline-flex items-center gap-1 text-sm font-black text-black bg-[#E4E3E0] border border-[#141414] px-2 py-0.5 flex-row-reverse font-mono">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{item.time}</span>
-                      </span>
+                {items.length > 0 ? (
+                  <div className="space-y-4">
+                    {items.map((item, idx) => {
+                      const driver = drivers.find((d) => d.id === item.driverId);
+                      const isMyRide = userRole === "driver" && activeDriverId && item.driverId === activeDriverId;
 
-                      <span
-                        className={`text-[10px] px-2 py-0.5 border border-[#141414] font-bold ${
-                          item.status === "urgent" ? "bg-red-600 text-white" : "bg-[#141414] text-white"
-                        }`}
-                      >
-                        {item.status === "urgent" ? "URGENT !!" : "REGULAR"}
-                      </span>
-                    </div>
+                      return (
+                        <div key={item.id} className={`p-3 border-2 border-[#141414] space-y-3 relative ${idx > 0 ? "mt-4 pt-4 border-t-2 border-dashed border-[#141414]" : ""} ${isMyRide ? "bg-emerald-50 border-emerald-500" : ""}`}>
+                          <div className="flex justify-between items-center flex-row-reverse">
+                            <span className="inline-flex items-center gap-1 text-sm font-black text-black bg-[#E4E3E0] border border-[#141414] px-2 py-0.5 flex-row-reverse font-mono">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>{item.time}</span>
+                            </span>
 
-                    {item.babysitterType && item.babysitterType !== "none" && (
-                      <div className="text-right pb-1">
-                        <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-950 text-[10px] px-2 py-0.5 rounded border border-indigo-300 font-black font-mono flex-row-reverse">
-                          <span>🧸</span>
-                          <span>
-                            {item.babysitterType === "babysitter_only"
-                              ? "בייביסיטר בלבד"
-                              : "איסוף + בייביסיטר"}
-                          </span>
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="space-y-1 text-slate-800 text-xs text-right animate-transition">
-                      {(!item.driverId || item.driverId === "unassigned") ? (
-                        <div className="space-y-1.5 mt-1">
-                          <p className="text-red-700 font-extrabold bg-red-100 border border-red-400 p-1.5 text-xs text-center rounded">
-                            ⚠️ דרוש נהג! (נסיעה פנויה)
-                          </p>
-                          {userRole === "driver" && activeDriverId && (
-                            <button
-                              onClick={() => {
-                                StorageEngine.updatePickup({ ...item, driverId: activeDriverId });
-                                StorageEngine.addLog(
-                                  "שיבוץ נהג עצמי",
-                                  `הנהג/ת ${drivers.find(d => d.id === activeDriverId)?.name || activeDriverId} שיבץ/ה את עצמו לאיסוף של ${item.childName} ביום ${item.day} בשעה ${item.time}.`,
-                                  "system",
-                                  item.childName
-                                );
-                              }}
-                              className="w-full text-center py-1.5 px-3 bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 border border-emerald-950 transition-all cursor-pointer shadow-[2px_2px_0_0_#064e3b]"
+                            <span
+                              className={`text-[10px] px-2 py-0.5 border border-[#141414] font-bold ${
+                                item.status === "urgent" ? "bg-red-600 text-white animate-pulse" : "bg-[#141414] text-white"
+                              }`}
                             >
-                              🖐 שבץ אותי כנהג!
-                            </button>
+                              {item.status === "urgent" ? "URGENT !!" : "REGULAR"}
+                            </span>
+                          </div>
+
+                          {item.babysitterType && item.babysitterType !== "none" && (
+                            <div className="text-right pb-1">
+                              <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-950 text-[10px] px-2 py-0.5 rounded border border-indigo-300 font-black font-mono flex-row-reverse">
+                                <span>🧸</span>
+                                <span>
+                                  {item.babysitterType === "babysitter_only"
+                                    ? "בייביסיטר בלבד"
+                                    : "איסוף + בייביסיטר"}
+                                </span>
+                              </span>
+                            </div>
                           )}
-                        </div>
-                      ) : (
-                        <p className="font-bold flex items-center gap-1 justify-end flex-row-reverse">
-                          <User className="w-4 h-4 text-slate-800" />
-                          <span>נהג/ת: {driver ? driver.name : "לא ידוע"}</span>
-                        </p>
-                      )}
-                      {driver?.phone && (
-                        <p className="flex items-center gap-1 justify-end flex-row-reverse">
-                          <Phone className="w-3.5 h-3.5 text-slate-800" />
-                          <a href={`tel:${driver.phone}`} className="hover:text-black font-bold ltr underline">
-                            {driver.phone}
-                          </a>
-                        </p>
-                      )}
-                      {item.notes && (
-                        <p className="bg-[#E4E3E0] p-2 border-r-4 border-[#141414] text-slate-800 mt-2 text-right font-mono">
-                          <strong>הערה: </strong> {item.notes}
-                        </p>
-                      )}
-                    </div>
 
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-300 flex-row-reverse">
-                      <button
-                        onClick={() => handleToggleCompletion(item.id)}
-                        className={`flex items-center gap-1 text-xs font-black px-2.5 py-1.5 border border-[#141414] transition-all cursor-pointer flex-row-reverse ${
-                          item.completed
-                            ? "bg-emerald-100 text-emerald-900"
-                            : "bg-[#D1D0CC] text-slate-800"
-                        }`}
-                      >
-                        <CheckCircle className="w-4 h-4 text-emerald-700" />
-                        <span>{item.completed ? "נאסף!" : "איסוף בוצע?"}</span>
-                      </button>
+                          {/* אינדיקטור שבועי / שינוי חד פעמי למובייל */}
+                          {item.isOneTimeOverride ? (
+                            <div className="flex flex-row-reverse flex-wrap items-center justify-start gap-1 mt-1">
+                              <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-500 text-amber-950 font-black text-[9.5px] px-2 py-0.5 rounded flex-row-reverse">
+                                <span>⚡</span>
+                                <span>שינוי חד-פעמי השבוע</span>
+                              </span>
+                              {userRole === "parent" && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm("האם להחזיר את ההסעה הזו להגדרות הקבועות המקוריות שלה?")) {
+                                      StorageEngine.updatePickup({
+                                        ...item,
+                                        time: item.originalRecurringValues?.time ?? item.time,
+                                        driverId: item.originalRecurringValues?.driverId ?? item.driverId,
+                                        notes: item.originalRecurringValues?.notes ?? item.notes,
+                                        status: item.originalRecurringValues?.status ?? item.status,
+                                        babysitterType: item.originalRecurringValues?.babysitterType ?? item.babysitterType,
+                                        isOneTimeOverride: false,
+                                        originalRecurringValues: undefined,
+                                      });
+                                    }
+                                  }}
+                                  className="text-[9.5px] font-black text-amber-900 underline hover:text-black cursor-pointer bg-white px-1.5 py-0.5 border border-amber-300"
+                                >
+                                  ↩️ שחזר לקבוע
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            item.isRecurring !== false && (
+                              <div className="text-right mt-1 font-sans">
+                                <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-350 text-slate-800 font-bold text-[9px] px-2 py-0.5 rounded flex-row-reverse">
+                                  <span>🔄</span>
+                                  <span>אירוע שבועי קבוע</span>
+                                </span>
+                              </div>
+                            )
+                          )}
 
-                      {userRole === "parent" && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => openEditForm(item)}
-                            className="p-1 text-slate-700 hover:text-black border border-transparent hover:border-[#141414] hover:bg-slate-100"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeletePickup(item.id)}
-                            className="p-1 text-slate-700 hover:text-red-700 border border-transparent hover:border-[#141414] hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="space-y-1 text-slate-800 text-xs text-right animate-transition">
+                            {(!item.driverId || item.driverId === "unassigned") ? (
+                              <div className="space-y-1.5 mt-1">
+                                <p className="text-red-700 font-extrabold bg-red-100 border border-red-400 p-1.5 text-xs text-center rounded">
+                                  ⚠️ דרוש נהג! (נסיעה פנויה)
+                                </p>
+                                {userRole === "driver" && activeDriverId && (
+                                  <button
+                                    onClick={() => {
+                                      StorageEngine.updatePickup({ ...item, driverId: activeDriverId });
+                                      StorageEngine.addLog(
+                                        "שיבוץ נהג עצמי",
+                                        `הנהג/ת ${drivers.find(d => d.id === activeDriverId)?.name || activeDriverId} שיבץ/ה את עצמו לאיסוף של ${item.childName} ביום ${item.day} בשעה ${item.time}.`,
+                                        "system",
+                                        item.childName
+                                      );
+                                    }}
+                                    className="w-full text-center py-1.5 px-3 bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 border border-emerald-950 transition-all cursor-pointer shadow-[2px_2px_0_0_#064e3b]"
+                                  >
+                                    🖐 שבץ אותי כנהג!
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="font-bold flex items-center gap-1 justify-end flex-row-reverse">
+                                <User className="w-4 h-4 text-slate-800" />
+                                <span>נהג/ת: {driver ? driver.name : "לא ידוע"}</span>
+                              </p>
+                            )}
+                            {driver?.phone && (
+                              <p className="flex items-center gap-1 justify-end flex-row-reverse">
+                                <Phone className="w-3.5 h-3.5 text-slate-800" />
+                                <a href={`tel:${driver.phone}`} className="hover:text-black font-bold ltr underline">
+                                  {driver.phone}
+                                </a>
+                              </p>
+                            )}
+                            {item.notes && (
+                              <p className="bg-[#E4E3E0] p-2 border-r-4 border-[#141414] text-slate-800 mt-2 text-right font-mono text-xs">
+                                <strong>הערה: </strong> {item.notes}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex justify-between items-center pt-2 border-t border-slate-350 flex-row-reverse gap-2">
+                            <button
+                              onClick={() => handleToggleCompletion(item.id)}
+                              className={`flex items-center gap-1 text-xs font-black px-2.5 py-1.5 border border-[#141414] transition-all cursor-pointer flex-row-reverse ${
+                                item.completed
+                                  ? "bg-emerald-100 text-emerald-900"
+                                  : "bg-[#D1D0CC] text-slate-800"
+                              }`}
+                            >
+                              <CheckCircle className="w-4 h-4 text-emerald-700" />
+                              <span>{item.completed ? "נאסף!" : "איסוף בוצע?"}</span>
+                            </button>
+
+                            {/* כפתור WhatsApp מהיר - זמין להורים, וכן לנהג המשויך כחלק מהתיאום */}
+                            {(userRole === "parent" || isMyRide) && (
+                              <button
+                                onClick={() => shareOnWhatsApp(item)}
+                                className="p-1 px-1.5 text-white bg-[#25D366] hover:bg-[#128C7E] border border-[#141414] shadow-[1px_1px_0_0_#141414] font-black text-[9px] flex items-center gap-1 cursor-pointer transition-colors"
+                                title="שלח תזכורת ופרטים ב-WhatsApp"
+                              >
+                                <MessageSquare className="w-3 h-3 text-white fill-white" />
+                                <span>WhatsApp</span>
+                              </button>
+                            )}
+
+                            {userRole === "parent" && (
+                              <div className="flex gap-2 shrink-0">
+                                <button
+                                  onClick={() => openEditForm(item)}
+                                  className="p-1 text-slate-705 hover:text-black border border-transparent hover:border-[#141414] hover:bg-slate-100"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePickup(item.id)}
+                                  className="p-1 text-slate-705 hover:text-red-700 border border-transparent hover:border-[#141414] hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
+                      );
+                    })}
+
                   </div>
                 ) : (
-                  userRole === "parent" ? (
-                    <button
-                      onClick={() => openAddForm(selectedDayTab, child)}
-                      className="w-full py-4 text-xs font-black text-black bg-white hover:bg-slate-100 border-2 border-dashed border-[#141414] flex items-center justify-center gap-1 flex-row-reverse cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>הוסף הסעה ל{child}</span>
-                    </button>
-                  ) : (
-                    <p className="text-xs text-slate-500 italic text-center py-2">אין איסוף רשום</p>
-                  )
+                  <p className="text-xs text-slate-500 italic text-center py-2">אין איסוף רשום</p>
                 )}
               </div>
             );
           })}
         </div>
+      </div>
+
+      {/* כפתור ייצוא לוח שבועי כתמונה - מופיע בתחתית */}
+      <div className="flex justify-center items-center py-6 px-4 border-t-2 border-dashed border-slate-300 mt-6" style={{ direction: "rtl" }}>
+        <button
+          onClick={handleExportImage}
+          disabled={isExporting}
+          className="px-6 py-3 border-4 border-[#141414] bg-[#F3E8FF] text-purple-950 font-black text-sm uppercase tracking-wide flex items-center gap-2.5 shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 cursor-pointer hover:bg-white transition-all disabled:opacity-50"
+          id="btn_export_weekly_grid_image"
+        >
+          {isExporting ? (
+            <>
+              <span className="animate-spin">🔄</span>
+              <span>מייצר תמונה... / GENERATING IMAGE</span>
+            </>
+          ) : (
+            <>
+              <span>📸</span>
+              <span>ייצוא הלו״ז המלא כתמונה (רחב) / EXPORT TABLE AS IMAGE</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* רשימת שאר נסיעות המשפחה השבוע - להשפעת תיאום גמיש (מופיע רק במצב נהג פעיל שחוסך מקום) */}
@@ -1025,12 +1404,12 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             </span>
           </div>
 
-          {pickups.filter(p => p.driverId !== activeDriverId).length === 0 ? (
+          {pickups.filter(p => p.driverId !== activeDriverId && !p.isOneTimeDeleted).length === 0 ? (
             <p className="text-xs text-slate-500 italic text-center py-4">אין נסיעות שבועיות נוספות משויכות לנהגים אחרים.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {pickups
-                .filter(p => p.driverId !== activeDriverId)
+                .filter(p => p.driverId !== activeDriverId && !p.isOneTimeDeleted)
                 .sort((a, b) => {
                   const dayOrder = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
                   const dayDiff = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
@@ -1483,57 +1862,18 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                           : "bg-white border-[#141414] text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      איסוף רגיל / סדיר (REGULAR)
+                      איסוף רגיל
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormStatus("urgent")}
                       className={`text-xs py-2 px-3 border-2 font-bold transition-colors ${
                         formStatus === "urgent"
-                          ? "bg-red-650 text-white border-[#141414] animate-pulse"
-                          : "bg-white border-[#141414] text-slate-700 hover:bg-slate-50"
+                          ? "bg-red-600 text-white border-[#141414]"
+                          : "bg-white border-[#141414] text-red-650 hover:bg-red-50"
                       }`}
                     >
-                      דחוף / שינוי בהול (URGENT)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800 block">האם נדרש בייביסיטר? 🧸</label>
-                  <div className="grid grid-cols-3 gap-2 flex-row-reverse">
-                    <button
-                      type="button"
-                      onClick={() => setFormBabysitterType("none")}
-                      className={`text-[11px] py-1.5 px-0.5 border-2 border-[#141414] font-black transition-colors ${
-                        formBabysitterType === "none"
-                          ? "bg-[#141414] text-white"
-                          : "bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      🚗 איסוף בלבד
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormBabysitterType("babysitter_only")}
-                      className={`text-[11px] py-1.5 px-0.5 border-2 border-[#141414] font-black transition-colors ${
-                        formBabysitterType === "babysitter_only"
-                          ? "bg-amber-600 text-white"
-                          : "bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      🧸 בייביסיטר בלבד
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormBabysitterType("both")}
-                      className={`text-[11px] py-1.5 px-0.5 border-2 border-[#141414] font-black transition-colors ${
-                        formBabysitterType === "both"
-                          ? "bg-indigo-650 text-white"
-                          : "bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      🚗+🧸 גם וגם
+                      דחוף / חריג ⚠️
                     </button>
                   </div>
                 </div>
@@ -1567,6 +1907,237 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* מודאל התראה ועדכון משלוח וואטסאפ לנהג לאחר שינוי / מחיקה */}
+      <AnimatePresence>
+        {driverNotificationPending && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-[#141414]/90" onClick={() => setDriverNotificationPending(null)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#FFFCE8] border-4 border-[#141414] p-6 max-w-md w-full tech-shadow z-10 text-right text-[#141414] font-mono"
+              id="driver_notification_popup"
+            >
+              <div className="flex items-center gap-2 flex-row-reverse pb-2 mb-4 border-b-2 border-[#141414]">
+                <Sparkles className="w-5 h-5 text-indigo-650 animate-bounce" />
+                <h3 className="font-extrabold text-[#141414] text-base">
+                  נשלח עדכון לנהג המוגדר!
+                </h3>
+              </div>
+
+              <div className="space-y-4 text-xs leading-relaxed font-sans text-slate-800">
+                <div className="font-bold text-slate-900 bg-white p-3 border-2 border-dashed border-[#141414]">
+                  {driverNotificationPending.actionType === "delete" ? (
+                    <span>
+                      בוטלה ההסעה של <strong>{driverNotificationPending.pickup.childName}</strong> ביום {driverNotificationPending.pickup.day} בשעה {driverNotificationPending.pickup.time}.
+                    </span>
+                  ) : (
+                    <span>
+                      עודכנו פרטי ההסעה של <strong>{driverNotificationPending.pickup.childName}</strong>. 
+                      {driverNotificationPending.oldPickup && (
+                        <span className="block mt-1 text-slate-500 font-normal">
+                          (קודם לכן: יום {driverNotificationPending.oldPickup.day} בשעה {driverNotificationPending.oldPickup.time})
+                        </span>
+                      )}
+                      <span className="block mt-1">
+                        המועד החדש: <strong>יום {driverNotificationPending.pickup.day} בשעה {driverNotificationPending.pickup.time}</strong>
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                <p className="font-bold text-slate-900">
+                  הודעת מערכת נשלחה בהצלחה לנהג/ת <strong>{driverNotificationPending.driver.name}</strong> 🔔
+                </p>
+                <p>
+                  מכיוון שהנהג/ת משויך/כת להסעה זו, אנו ממליצים מאוד לשגר גם הודעת וואטסאפ מהירה כדי לוודא ששמו לב לשינוי המיידי:
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-4 border-t border-slate-300 mt-4">
+                <button
+                  onClick={() => {
+                    const drv = driverNotificationPending.driver;
+                    const p = driverNotificationPending.pickup;
+                    let text = "";
+                    if (driverNotificationPending.actionType === "delete") {
+                      text = `🚗 *עדכון על ביטול הסעה בסהרון* 🚗\n\nהיי ${drv.name},\nרצינו לעדכן שההסעה הרשומה על שמך בוטלה:\n\n👦🧒 *הילד/ה:* ${p.childName}\n📅 *מועד מבוטל:* יום ${p.day} בשעה ${p.time}\n\nאין צורך לבצע איסוף זה השבוע! תודה רבה 🧡`;
+                    } else {
+                      text = `🚗 *עדכון חשוב על שינוי בהסעה בסהרון* 🚗\n\nהיי ${drv.name},\nעודכן שינוי בהסעה המשוייכת אליך:\n\n👦🧒 *הילד/ה:* ${p.childName}\n📅 *המועד החדש:* יום ${p.day} בשעה ${p.time}\n${p.notes ? `💬 *הערות נוספות:* ${p.notes}\n` : ""}\nנודה לך אם תאשר/י בקבלת ההודעה! שבוע מקסים 👍`;
+                    }
+
+                    let phoneNum = drv.phone.replace(/[^0-9]/g, "");
+                    if (phoneNum.startsWith("0")) {
+                      phoneNum = "972" + phoneNum.substring(1);
+                    }
+                    const url = `https://api.whatsapp.com/send?phone=${phoneNum}&text=${encodeURIComponent(text)}`;
+                    window.open(url, "_blank");
+                  }}
+                  className="w-full py-2.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none transition-all text-center"
+                >
+                  💬 שלח הודעת עדכון ישירה בוואטסאפ
+                </button>
+                <button
+                  onClick={() => setDriverNotificationPending(null)}
+                  className="w-full py-2 bg-[#D1D0CC] hover:bg-slate-300 border-2 border-[#141414] text-xs font-black cursor-pointer text-center"
+                >
+                  הבנתי, סגור הודעה זו 👍
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* תחילת מודאלי שליטה */}
+
+      {/* מודאל מחיקה מותאם אישית */}
+      <AnimatePresence>
+        {deleteConfirmId && (() => {
+          const pickupToDelete = pickups.find(p => p.id === deleteConfirmId);
+          if (!pickupToDelete) return null;
+          return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <div className="fixed inset-0 bg-[#141414]/90" onClick={() => setDeleteConfirmId(null)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-[#FFFDF9] border-4 border-[#141414] p-6 max-w-sm w-full tech-shadow z-10 text-right text-[#141414] font-mono"
+                id="delete_confirmation_modal"
+              >
+                <div className="flex items-center gap-2 flex-row-reverse pb-2 mb-4 border-b-2 border-[#141414] text-red-600">
+                  <AlertTriangle className="w-5 h-5 text-red-600 animate-bounce shrink-0" />
+                  <h3 className="font-extrabold text-[#141414] text-base">
+                    אישור ביטול נסיעה
+                  </h3>
+                </div>
+
+                <div className="space-y-4 text-xs leading-relaxed font-sans text-slate-800">
+                  <p className="font-bold text-slate-900">
+                    כיצד ברצונך לבטל נסיעה זו?
+                  </p>
+                  <div className="bg-red-50 p-3 border-2 border-dashed border-red-200 rounded text-right space-y-1">
+                    <div>👦🧒 <strong>ילד/ה:</strong> {pickupToDelete.childName}</div>
+                    <div>🗓️ <strong>יום:</strong> {pickupToDelete.day}</div>
+                    <div>⏰ <strong>שעה:</strong> {pickupToDelete.time}</div>
+                    {pickupToDelete.isRecurring && (
+                      <div className="text-red-750 font-bold mt-1">🔄 הסעה זו הינה הסעה שבועית קבועה.</div>
+                    )}
+                  </div>
+                </div>
+
+                {pickupToDelete.isRecurring ? (
+                  <div className="flex flex-col gap-2 pt-4 border-t border-slate-200 mt-4 text-center">
+                    <button
+                      onClick={() => {
+                        if (deleteConfirmId) {
+                          executeDeletePickup(deleteConfirmId, "onetime");
+                        }
+                      }}
+                      className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none transition-all animate-pulse"
+                      id="btn_confirm_delete_pickup_onetime"
+                    >
+                      ⚡ ביטול חד-פעמי (עבור שבוע זה בלבד)
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (deleteConfirmId) {
+                          executeDeletePickup(deleteConfirmId, "permanent");
+                        }
+                      }}
+                      className="w-full py-2 bg-red-600 hover:bg-red-700 text-white border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none transition-all"
+                      id="btn_confirm_delete_pickup_permanent"
+                    >
+                      ❌ מחיקה לצמיתות (לכל השבועות הבאים)
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(null)}
+                      className="w-full py-2 bg-[#D1D0CC] hover:bg-slate-300 border-2 border-[#141414] text-xs font-black cursor-pointer text-center"
+                      id="btn_cancel_delete_pickup"
+                    >
+                      חזור ללו״ז (ביטול)
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 pt-4 border-t border-slate-200 mt-4 flex-row-reverse">
+                    <button
+                      onClick={() => {
+                        if (deleteConfirmId) {
+                          executeDeletePickup(deleteConfirmId, "permanent");
+                        }
+                      }}
+                      className="flex-1 py-1.5 md:py-2 bg-red-650 text-white hover:bg-red-700 border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none transition-all text-center"
+                      id="btn_confirm_delete_pickup"
+                    >
+                      כן, מחק הסעה
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(null)}
+                      className="flex-1 py-1.5 md:py-2 bg-[#D1D0CC] hover:bg-slate-300 border-2 border-[#141414] text-xs font-black cursor-pointer text-center"
+                      id="btn_cancel_delete_pickup"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* מודאל אתחול שבוע מותאם אישית (ללא window.confirm) */}
+      <AnimatePresence>
+        {resetWeekConfirmOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-[#141414]/90" onClick={() => setResetWeekConfirmOpen(false)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#FFFDF9] border-4 border-[#141414] p-6 max-w-md w-full tech-shadow z-10 text-right text-[#141414] font-mono"
+              id="reset_week_confirmation_modal"
+            >
+              <div className="flex items-center gap-2 flex-row-reverse pb-2 mb-4 border-b-2 border-[#141414] text-indigo-950">
+                <Trash2 className="w-5 h-5 text-indigo-950 shrink-0" />
+                <h3 className="font-extrabold text-[#141414] text-base">
+                  אישור אתחול שבוע
+                </h3>
+              </div>
+
+              <div className="space-y-4 text-xs leading-relaxed font-sans text-slate-800">
+                <p className="font-bold text-indigo-950">
+                  האם לאתחל את השבוע הנוכחי ולהכין את האפליקציה לשבוע הבא?
+                </p>
+                <div className="space-y-1 text-slate-700 bg-indigo-50/50 p-3 border border-indigo-100 rounded text-right leading-relaxed font-bold" style={{ direction: "rtl" }}>
+                  <div>🔄 שחזור הגדרות המקור הקבועות לכל אירוע קבוע שעבר שינוי חד-פעמי (Override).</div>
+                  <div className="mt-1">🧹 איפוס כל סימוני ה-V (בוצע) לשבוע הבא.</div>
+                  <div className="mt-1">❌ אירועים חד-פעמיים מיוחדים שנוספו השבוע בלבד (שאינם קבועים) יימחקו מהלוח המלא.</div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t border-slate-200 mt-4 flex-row-reverse">
+                <button
+                  onClick={executeResetWeek}
+                  className="flex-1 py-1.5 md:py-2 bg-indigo-950 text-white hover:bg-slate-900 border-2 border-[#141414] text-xs font-black cursor-pointer shadow-[2px_2px_0_0_#141414] hover:shadow-none transition-all text-center"
+                  id="btn_confirm_reset_week"
+                >
+                  כן, אתחל שבוע
+                </button>
+                <button
+                  onClick={() => setResetWeekConfirmOpen(false)}
+                  className="flex-1 py-1.5 md:py-2 bg-[#D1D0CC] hover:bg-slate-300 border-2 border-[#141414] text-xs font-black cursor-pointer text-center"
+                  id="btn_cancel_reset_week"
+                >
+                  ביטול
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

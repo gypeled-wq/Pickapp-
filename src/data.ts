@@ -442,6 +442,26 @@ async function startFirebaseSync() {
 
 startFirebaseSync();
 
+function cleanForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanForFirestore(item));
+  }
+  if (typeof obj === "object") {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val !== undefined) {
+        cleaned[key] = cleanForFirestore(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 // פונקציות לעדכון הנתונים ב-Firestore באופן אוטומטי
 async function syncDriversInFirestore(newDrivers: Driver[]) {
   try {
@@ -455,7 +475,7 @@ async function syncDriversInFirestore(newDrivers: Driver[]) {
       }
     }
     for (const d of newDrivers) {
-      await setDoc(doc(db, "drivers", d.id), d);
+      await setDoc(doc(db, "drivers", d.id), cleanForFirestore(d));
     }
   } catch (err) {
     console.error("Firestore sync Error (drivers):", err);
@@ -474,7 +494,7 @@ async function syncPickupsInFirestore(newPickups: Pickup[]) {
       }
     }
     for (const p of newPickups) {
-      await setDoc(doc(db, "pickups", p.id), p);
+      await setDoc(doc(db, "pickups", p.id), cleanForFirestore(p));
     }
   } catch (err) {
     console.error("Firestore sync Error (pickups):", err);
@@ -493,7 +513,7 @@ async function syncLogsInFirestore(newLogs: ActivityLog[]) {
       }
     }
     for (const l of newLogs) {
-      await setDoc(doc(db, "logs", l.id), l);
+      await setDoc(doc(db, "logs", l.id), cleanForFirestore(l));
     }
   } catch (err) {
     console.error("Firestore sync Error (logs):", err);
@@ -512,7 +532,7 @@ async function syncAlertsInFirestore(newAlerts: AlertNotification[]) {
       }
     }
     for (const a of newAlerts) {
-      await setDoc(doc(db, "alerts", a.id), a);
+      await setDoc(doc(db, "alerts", a.id), cleanForFirestore(a));
     }
   } catch (err) {
     console.error("Firestore sync Error (alerts):", err);

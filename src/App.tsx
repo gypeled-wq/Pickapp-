@@ -166,8 +166,8 @@ export default function App() {
 
           {/* לוח מתגי בקרה ובורר תפקידים מוגן */}
           <div className="flex items-center gap-4 flex-row-reverse">
-            {/* מרכז ההתראות החי - מציג להורים או לנהג מלווה בלבד בהתאמה, מתחבא לילדים */}
-            <NotificationCenter userRole={userRole} activeDriverId={activeDriverId} />
+            {/* מרכז ההתראות החי - מציג להורים בלבד, מתחבא לנהגים וילדים */}
+            {userRole === "parent" && <NotificationCenter userRole={userRole} activeDriverId={activeDriverId} />}
 
             {/* בורר תפקידים (הרשאות וממשק) */}
             {userRole === "child" ? (
