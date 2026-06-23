@@ -139,29 +139,48 @@ export default function NotificationCenter({ userRole = "parent", activeDriverId
               (latest.title + " " + latest.message).toLowerCase().includes(currentDriverName.toLowerCase()));
 
           if (isRelevantToMe) {
-            setToast(latest);
+            // התראות קופצות רק על אירועים של ביטול או שינוי נסיעה. כל השאר רק מתועדות (בלי pop up)
+            const alertComboText = (latest.title + " " + latest.message).toLowerCase();
+            const isCancellationOrChange = 
+              alertComboText.includes("ביטול") || 
+              alertComboText.includes("בוטלה") || 
+              alertComboText.includes("שינוי") || 
+              alertComboText.includes("חריגה") || 
+              alertComboText.includes("עודכן") ||
+              alertComboText.includes("עדכון") ||
+              alertComboText.includes("שונה") ||
+              alertComboText.includes("cancel") ||
+              alertComboText.includes("delete") ||
+              alertComboText.includes("change") ||
+              alertComboText.includes("update") ||
+              alertComboText.includes("modify") ||
+              alertComboText.includes("override");
 
-            // הפעלת צליל חיווי חביב כגיבוי בטוח (חצי-מכני נקי)
-            playNotificationChime();
+            if (isCancellationOrChange) {
+              setToast(latest);
 
-            // הפעלת התראת דפדפן (Browser Notification)
-            if (typeof window !== "undefined" && "Notification" in window) {
-              try {
-                if (Notification.permission === "granted") {
-                  new Notification(latest.title, {
-                    body: latest.message,
-                    icon: "/favicon.ico",
-                    tag: latest.id,
-                  });
+              // הפעלת צליל חיווי חביב כגיבוי בטוח (חצי-מכני נקי)
+              playNotificationChime();
+
+              // הפעלת התראת דפדפן (Browser Notification)
+              if (typeof window !== "undefined" && "Notification" in window) {
+                try {
+                  if (Notification.permission === "granted") {
+                    new Notification(latest.title, {
+                      body: latest.message,
+                      icon: "/favicon.ico",
+                      tag: latest.id,
+                    });
+                  }
+                } catch (e) {
+                  console.error("Could not dispatch browser notification", e);
                 }
-              } catch (e) {
-                console.error("Could not dispatch browser notification", e);
               }
-            }
 
-            setTimeout(() => {
-              setToast((curr) => (curr && curr.id === latest.id ? null : curr));
-            }, 6000);
+              setTimeout(() => {
+                setToast((curr) => (curr && curr.id === latest.id ? null : curr));
+              }, 6000);
+            }
           }
         }
       }

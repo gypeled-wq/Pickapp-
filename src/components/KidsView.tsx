@@ -108,21 +108,22 @@ export default function KidsView() {
         </div>
 
         {/* לחצני בחירה ענקיים לילדים */}
-        <div className="flex gap-2.5 relative select-none z-10">
+        <div className="flex flex-row gap-2 relative select-none z-10 justify-center w-full md:w-auto">
           {DEFAULT_CHILDREN.map((kid) => {
             const isActive = activeKid === kid;
+            const emoji = kid === "נועה" ? "👧" : kid === "איתי" ? "👦" : "🧑";
             return (
               <button
                 key={kid}
                 onClick={() => setActiveKid(kid)}
-                className={`py-3 px-6 border-2 border-[#141414] text-sm font-black transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-1.5 ${
+                className={`py-1.5 px-4 md:py-3 md:px-6 border-2 border-[#141414] text-xs md:text-sm font-black transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0 flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-1.5 min-w-[80px] md:min-w-0 ${
                   isActive
                     ? "bg-[#141414] text-white shadow-none"
                     : "bg-white hover:bg-slate-100 text-[#141414]"
                 }`}
               >
-                <span>{kid}</span>
-                <span className="text-sm">👦</span>
+                <span className="text-base md:text-sm order-first">{emoji}</span>
+                <span className="text-xs md:text-sm">{kid}</span>
               </button>
             );
           })}
@@ -130,16 +131,17 @@ export default function KidsView() {
       </div>
 
       {/* בקרי הדמיית ימים לטובת המשתמש */}
-      <div className="flex justify-between items-center bg-white p-3 border-2 border-[#141414] text-xs flex-row-reverse text-[#141414] font-mono shadow-[2px_2px_0_0_#141414]">
+      {/* דסקטופ בלבד */}
+      <div className="hidden md:flex flex-col md:flex-row justify-between items-center bg-white p-3 border-2 border-[#141414] text-xs flex-row-reverse text-[#141414] font-mono shadow-[2px_2px_0_0_#141414] gap-2">
         <span className="font-bold border-r-4 border-[#141414] pr-2">סימולטור ימים לילדים:</span>
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex gap-1">
           {DAYS_OF_WEEK.map((day) => (
             <button
               key={day}
               onClick={() => setSimulatedDay(day)}
               className={`px-2.5 py-1 border transition-all cursor-pointer font-bold text-[11px] ${
                 simulatedDay === day
-                  ? "bg-[#141414] text-white border-[#141414]"
+                  ? "bg-[#141414] text-[#E4E3E0] border-[#141414]"
                   : "bg-[#E4E3E0] hover:bg-slate-300 text-slate-800 border-[#141414]"
               }`}
             >
@@ -149,13 +151,35 @@ export default function KidsView() {
         </div>
       </div>
 
+      {/* מובייל בלבד: טאבים ענקיים על ימים להדמיית ימים לילדים שלו */}
+      <div className="md:hidden grid grid-cols-7 gap-1.5 bg-[#D1D0CC] p-2 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
+        {DAYS_OF_WEEK.map((day) => {
+          const isSelected = simulatedDay === day;
+          const shortName = day === "ראשון" ? "א'" : day === "שני" ? "ב'" : day === "שלישי" ? "ג'" : day === "רביעי" ? "ד'" : day === "חמישי" ? "ה'" : day === "שישי" ? "ו'" : "שב'";
+          return (
+            <button
+              key={day}
+              onClick={() => setSimulatedDay(day)}
+              className={`py-4.5 px-0.5 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
+                isSelected
+                  ? "bg-[#141414] text-white"
+                  : "bg-white text-[#141414] hover:bg-slate-50"
+              }`}
+            >
+              <span className="text-base font-black leading-none">{shortName}</span>
+              <span className="text-[11px] font-black leading-none mt-1.5 block">{day}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* כרטיס קריאה מהירה לילדים שצריכים איסוף */}
       <div className="bg-[#FFFCE8] border-4 border-[#141414] p-5 shadow-[4px_4px_0_0_#141414] flex flex-col sm:flex-row justify-between items-center gap-4 text-right">
         <div>
           <h4 className="text-base font-black text-amber-955 flex items-center gap-1.5 flex-row-reverse">
             <span>🙋‍♂️ צריך איסוף ממועדונית או מהחוג השבוע?</span>
           </h4>
-          <p className="text-xs text-amber-900 mt-1 font-bold">
+          <p className="hidden sm:block text-xs text-amber-900 mt-1 font-bold">
             אם יש לכם חוג או פעילות וצריך שמישהו יבוא לאסוף אתכם, לחצו על הכפתור ועדכנו את ההורים מיד!
           </p>
         </div>
@@ -182,7 +206,7 @@ export default function KidsView() {
               <span className="bg-[#141414] text-white text-xs px-3 py-1 font-bold">
                 איסוף מתוכנן להיום (יום {simulatedDay})
               </span>
-              <span className="flex items-center gap-1 text-slate-500 text-xs flex-row-reverse font-bold">
+              <span className="hidden sm:flex items-center gap-1 text-slate-500 text-xs flex-row-reverse font-bold">
                 <Calendar className="w-4 h-4" />
                 <span>עידכון חי / LIVE LOCK</span>
               </span>
@@ -196,11 +220,11 @@ export default function KidsView() {
                     היי {activeKid}, היום יום {simulatedDay} ויאסוף אותך:
                   </h3>
                   <div className="flex items-center gap-3 mt-4 justify-start flex-row-reverse">
-                    <div className="bg-[#E4E3E0] p-3 border-2 border-[#141414] text-[#141414]">
+                    <div className="hidden sm:block bg-[#E4E3E0] p-3 border-2 border-[#141414] text-[#141414]">
                       <Clock className="w-8 h-8 font-bold animate-pulse" />
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-slate-500 font-bold">بדיוק בשעה שנקבעה:</p>
+                      <p className="text-xs text-slate-500 font-bold">בדיוק בשעה שנקבעה:</p>
                       <p className="text-3xl font-black text-[#141414] font-mono tracking-wider">{todaysPickup.time}</p>
                     </div>
                   </div>
@@ -257,7 +281,7 @@ export default function KidsView() {
           {todaysPickup && (
             <div className="mt-6 pt-4 border-t-2 border-[#141414] flex flex-col sm:flex-row gap-4 justify-between items-center flex-row-reverse">
               <div className="text-right">
-                <p className="text-xs text-slate-500 font-bold">גע/י כאן ברגע שאת/ה נכנס/ת למכונית:</p>
+                <p className="hidden sm:block text-xs text-slate-500 font-bold">גע/י כאן ברגע שאת/ה נכנס/ת למכונית:</p>
               </div>
               <button
                 onClick={() => handleImInTheCar(todaysPickup.id)}

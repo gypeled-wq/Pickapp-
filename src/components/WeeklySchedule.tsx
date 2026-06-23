@@ -784,7 +784,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       {/* כותרת המדור ופיקוח */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b-4 border-[#141414] pb-4 flex-row-reverse">
         <div className="text-right w-full md:w-auto">
-          <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-[#141414] text-[#E4E3E0] px-2 py-0.5 border border-[#141414]">
+          <span className="hidden md:inline-block text-[10px] font-mono font-bold uppercase tracking-wider bg-[#141414] text-[#E4E3E0] px-2 py-0.5 border border-[#141414]">
             לוח בקרה שבועי / WEEKLY CONTROL GRID
           </span>
           <h2 className="hidden sm:block text-2xl font-black text-[#141414] mt-1 font-serif uppercase italic font-sans">תוכנית האיסופים השבועית</h2>
@@ -804,20 +804,25 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         )}
 
         {/* טאבים על ימים במובייל / סינונים */}
-        <div className="md:hidden flex gap-1 bg-slate-150 p-1 rounded-xl w-full overflow-x-auto select-none" style={{ direction: "rtl" }}>
-          {DAYS_OF_WEEK.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDayTab(day)}
-              className={`flex-1 text-center py-2 px-3 text-xs font-semibold rounded-lg shrink-0 transition-all ${
-                selectedDayTab === day
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              יום {day}
-            </button>
-          ))}
+        <div className="md:hidden grid grid-cols-7 gap-1.5 bg-[#D1D0CC] p-2 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
+          {DAYS_OF_WEEK.map((day) => {
+            const isSelected = selectedDayTab === day;
+            const shortName = day === "ראשון" ? "א'" : day === "שני" ? "ב'" : day === "שלישי" ? "ג'" : day === "רביעי" ? "ד'" : day === "חמישי" ? "ה'" : day === "שישי" ? "ו'" : "שב'";
+            return (
+              <button
+                key={day}
+                onClick={() => setSelectedDayTab(day)}
+                className={`py-4.5 px-0.5 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
+                  isSelected
+                    ? "bg-[#141414] text-white"
+                    : "bg-white text-[#141414] hover:bg-slate-50"
+                }`}
+              >
+                <span className="text-base font-black leading-none">{shortName}</span>
+                <span className="text-[11px] font-black leading-none mt-1.5 block">{day}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -831,10 +836,10 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             </h4>
             <p className="hidden sm:block text-xs text-slate-700 font-medium">כנהג משפחתי פעיל, באפשרותך לסנן את הלוח כדי להתרכז רק במשימות שלך השבוע, או לצפות בכלל נסיעות הבית.</p>
           </div>
-          <div className="flex bg-white border-2 border-[#141414] p-1 shadow-[2px_2px_0_0_#141414] shrink-0 select-none">
+          <div className="flex bg-white border-2 border-[#141414] p-1 shadow-[2px_2px_0_0_#141414] w-full md:w-auto flex-1 select-none">
             <button
               onClick={() => setDriverFilter("only-mine")}
-              className={`px-4 py-2 text-xs font-black transition-all cursor-pointer ${
+              className={`flex-1 md:flex-initial text-center px-4 py-2.5 text-xs font-black transition-all cursor-pointer ${
                 driverFilter === "only-mine"
                   ? "bg-[#141414] text-white"
                   : "bg-white text-slate-705 hover:bg-[#F2F2EF]"
@@ -844,7 +849,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             </button>
             <button
               onClick={() => setDriverFilter("all")}
-              className={`px-4 py-2 text-xs font-black transition-all border-r-2 border-[#141414] cursor-pointer ${
+              className={`flex-1 md:flex-initial text-center px-4 py-2.5 text-xs font-black transition-all border-r-2 border-[#141414] cursor-pointer ${
                 driverFilter === "all"
                   ? "bg-[#141414] text-white"
                   : "bg-white text-slate-705 hover:bg-[#F2F2EF]"
