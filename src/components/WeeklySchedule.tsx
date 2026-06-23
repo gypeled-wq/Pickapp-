@@ -782,7 +782,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       )}
 
       {/* כותרת המדור ופיקוח */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b-4 border-[#141414] pb-4 flex-row-reverse">
+      <div className="flex flex-col md:flex-row-reverse justify-between items-center gap-4 border-b-4 border-[#141414] pb-4">
         <div className="text-right w-full md:w-auto">
           <span className="hidden md:inline-block text-[10px] font-mono font-bold uppercase tracking-wider bg-[#141414] text-[#E4E3E0] px-2 py-0.5 border border-[#141414]">
             לוח בקרה שבועי / WEEKLY CONTROL GRID
@@ -804,7 +804,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         )}
 
         {/* טאבים על ימים במובייל / סינונים */}
-        <div className="md:hidden grid grid-cols-7 gap-1.5 bg-[#D1D0CC] p-2 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
+        <div className="md:hidden grid grid-cols-7 gap-1 bg-[#D1D0CC] p-1.5 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = selectedDayTab === day;
             const shortName = day === "ראשון" ? "א'" : day === "שני" ? "ב'" : day === "שלישי" ? "ג'" : day === "רביעי" ? "ד'" : day === "חמישי" ? "ה'" : day === "שישי" ? "ו'" : "שב'";
@@ -812,7 +812,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
               <button
                 key={day}
                 onClick={() => setSelectedDayTab(day)}
-                className={`py-4.5 px-0.5 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
+                className={`py-5 px-1 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
                   isSelected
                     ? "bg-[#141414] text-white"
                     : "bg-white text-[#141414] hover:bg-slate-50"

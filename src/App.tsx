@@ -268,7 +268,7 @@ export default function App() {
               id="parent_panel_root"
             >
               {/* מקטע 1: תוכנית איסופים שבועית בגריד */}
-              <div className="bg-white border-4 border-[#141414] tech-shadow p-6">
+              <div className="bg-white border-4 border-[#141414] tech-shadow p-2 px-2 pb-4 pt-3 xs:p-4 sm:p-6">
                 <WeeklySchedule userRole="parent" activeDriverId={activeDriverId} />
               </div>
 
@@ -323,7 +323,7 @@ export default function App() {
               </div>
 
               {/* לוח הסעות שבועי מותאם לנהגים */}
-              <div className="bg-white border-4 border-[#141414] tech-shadow p-6">
+              <div className="bg-white border-4 border-[#141414] tech-shadow p-2 px-2 pb-4 pt-3 xs:p-4 sm:p-6">
                 <WeeklySchedule userRole="driver" activeDriverId={activeDriverId} />
               </div>
             </motion.div>

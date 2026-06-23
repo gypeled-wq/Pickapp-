@@ -152,7 +152,7 @@ export default function KidsView() {
       </div>
 
       {/* מובייל בלבד: טאבים ענקיים על ימים להדמיית ימים לילדים שלו */}
-      <div className="md:hidden grid grid-cols-7 gap-1.5 bg-[#D1D0CC] p-2 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
+      <div className="md:hidden grid grid-cols-7 gap-1 bg-[#D1D0CC] p-1.5 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
         {DAYS_OF_WEEK.map((day) => {
           const isSelected = simulatedDay === day;
           const shortName = day === "ראשון" ? "א'" : day === "שני" ? "ב'" : day === "שלישי" ? "ג'" : day === "רביעי" ? "ד'" : day === "חמישי" ? "ה'" : day === "שישי" ? "ו'" : "שב'";
@@ -160,7 +160,7 @@ export default function KidsView() {
             <button
               key={day}
               onClick={() => setSimulatedDay(day)}
-              className={`py-4.5 px-0.5 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
+              className={`py-5 px-1 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
                 isSelected
                   ? "bg-[#141414] text-white"
                   : "bg-white text-[#141414] hover:bg-slate-50"
