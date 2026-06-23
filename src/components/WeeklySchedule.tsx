@@ -40,7 +40,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
   // ערכי טופס
   const [formDay, setFormDay] = useState("ראשון");
-  const [formChildren, setFormChildren] = useState<string[]>(["איתי"]);
+  const [formChildren, setFormChildren] = useState<string[]>(["יובל"]);
   const [formTime, setFormTime] = useState("13:30");
   const [formDriverId, setFormDriverId] = useState("");
   const [formStatus, setFormStatus] = useState<"regular" | "urgent">("regular");
@@ -55,7 +55,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
   // שלב דיווח על שינוי מקוצר (כפתור מוקד דחוף)
   const [isUrgentReporterOpen, setIsUrgentReporterOpen] = useState(false);
-  const [urgentReportChild, setUrgentReportChild] = useState("איתי");
+  const [urgentReportChild, setUrgentReportChild] = useState("יובל");
   const [urgentReportDay, setUrgentReportDay] = useState("ראשון");
   const [urgentReportTime, setUrgentReportTime] = useState("13:30");
   const [urgentReportType, setUrgentReportType] = useState<"change" | "cancel">("change");
@@ -330,7 +330,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     setEditingPickup(pickup);
     setFormDay(pickup.day);
     const parsed = pickup.childName.split(",").map(c => c.trim()).filter(Boolean);
-    setFormChildren(parsed.length > 0 ? parsed : ["איתי"]);
+    setFormChildren(parsed.length > 0 ? parsed : ["יובל"]);
     setFormTime(pickup.time);
     setFormDriverId(pickup.driverId || "unassigned");
     setFormStatus(pickup.status);
@@ -887,7 +887,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         {/* כפתור תיאום נסיעה מרכזי להורים במכשיר שולחן עבודה */}
         {userRole === "parent" && (
           <button
-            onClick={() => openAddForm("ראשון", "איתי")}
+            onClick={() => openAddForm("ראשון", "יובל")}
             className="hidden md:flex px-6 py-3 bg-[#EEF2FF] hover:bg-[#141414] text-indigo-950 hover:text-white font-black text-xs border-4 border-[#141414] shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 transition-all items-center gap-1.5 flex-row-reverse cursor-pointer font-sans shrink-0 uppercase tracking-wide"
             id="parent_desktop_add_pickup_central_btn"
           >
@@ -1277,7 +1277,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
           {/* כפתור הוספה מרכזי להורים לתיאום קל ממקום אחד (יבקש יום, ילד, שעה וכו') */}
           {userRole === "parent" && (
             <button
-              onClick={() => openAddForm(selectedDayTab, "איתי")}
+              onClick={() => openAddForm(selectedDayTab, "יובל")}
               className="w-full py-3 bg-[#EEF2FF] hover:bg-white text-indigo-950 hover:text-black font-black text-xs border-2 border-dashed border-[#141414] shadow-[3px_3px_0_0_#141414] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 flex-row-reverse cursor-pointer font-sans"
               id="parent_mobile_add_pickup_central_btn"
             >

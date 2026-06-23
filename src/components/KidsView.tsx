@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "motion/react";
 export default function KidsView() {
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [activeKid, setActiveKid] = useState("איתי");
+  const [activeKid, setActiveKid] = useState("יובל");
 
   // מודאל בקשת איסוף מילד
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -111,7 +111,7 @@ export default function KidsView() {
         <div className="flex flex-row gap-2 relative select-none z-10 justify-center w-full md:w-auto">
           {DEFAULT_CHILDREN.map((kid) => {
             const isActive = activeKid === kid;
-            const emoji = kid === "נועה" ? "👧" : kid === "איתי" ? "👦" : "🧑";
+            const emoji = kid === "בר" ? "👧" : kid === "יובל" ? "👦" : "👦";
             return (
               <button
                 key={kid}

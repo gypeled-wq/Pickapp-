@@ -56,4 +56,4 @@ export interface AlertNotification {
 
 export const DAYS_OF_WEEK = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
-export const DEFAULT_CHILDREN = ["איתי", "נועה", "עומר"];
+export const DEFAULT_CHILDREN = ["יובל", "אלון", "בר"];

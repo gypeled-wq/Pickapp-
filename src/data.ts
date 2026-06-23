@@ -62,7 +62,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_sun_itay",
     day: "ראשון",
-    childName: "איתי",
+    childName: "יובל",
     time: "13:30",
     driverId: MAMA_ID,
     status: "regular",
@@ -72,7 +72,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_sun_noa",
     day: "ראשון",
-    childName: "נועה",
+    childName: "אלון",
     time: "14:00",
     driverId: PAPA_ID,
     status: "regular",
@@ -82,7 +82,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_sun_omer",
     day: "ראשון",
-    childName: "עומר",
+    childName: "בר",
     time: "16:30",
     driverId: GRANDMA_ID,
     status: "regular",
@@ -94,7 +94,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_mon_itay",
     day: "שני",
-    childName: "איתי",
+    childName: "יובל",
     time: "13:30",
     driverId: PAPA_ID,
     status: "regular",
@@ -104,7 +104,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_mon_noa",
     day: "שני",
-    childName: "נועה",
+    childName: "אלון",
     time: "15:45",
     driverId: MAAYAN_ID,
     status: "urgent",
@@ -114,7 +114,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_mon_omer",
     day: "שני",
-    childName: "עומר",
+    childName: "בר",
     time: "16:30",
     driverId: MAMA_ID,
     status: "regular",
@@ -126,7 +126,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_tue_itay",
     day: "שלישי",
-    childName: "איתי",
+    childName: "יובל",
     time: "13:30",
     driverId: GRANDMA_ID,
     status: "regular",
@@ -136,7 +136,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_tue_noa",
     day: "שלישי",
-    childName: "נועה",
+    childName: "אלון",
     time: "14:00",
     driverId: MAMA_ID,
     status: "regular",
@@ -146,7 +146,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_tue_omer",
     day: "שלישי",
-    childName: "עומר",
+    childName: "בר",
     time: "16:30",
     driverId: PAPA_ID,
     status: "regular",
@@ -158,7 +158,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_wed_itay",
     day: "רביעי",
-    childName: "איתי",
+    childName: "יובל",
     time: "13:30",
     driverId: MAMA_ID,
     status: "regular",
@@ -168,7 +168,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_wed_noa",
     day: "רביעי",
-    childName: "נועה",
+    childName: "אלון",
     time: "14:00",
     driverId: ALON_ID,
     status: "urgent",
@@ -178,7 +178,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_wed_omer",
     day: "רביעי",
-    childName: "עומר",
+    childName: "בר",
     time: "16:30",
     driverId: GRANDMA_ID,
     status: "regular",
@@ -190,7 +190,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_thu_itay",
     day: "חמישי",
-    childName: "איתי",
+    childName: "יובל",
     time: "13:30",
     driverId: PAPA_ID,
     status: "regular",
@@ -200,7 +200,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_thu_noa",
     day: "חמישי",
-    childName: "נועה",
+    childName: "אלון",
     time: "14:00",
     driverId: GRANDMA_ID,
     status: "regular",
@@ -210,7 +210,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_thu_omer",
     day: "חמישי",
-    childName: "עומר",
+    childName: "בר",
     time: "16:30",
     driverId: MAMA_ID,
     status: "regular",
@@ -222,7 +222,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_fri_itay",
     day: "שישי",
-    childName: "איתי",
+    childName: "יובל",
     time: "12:00",
     driverId: MAMA_ID,
     status: "regular",
@@ -232,7 +232,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_fri_noa",
     day: "שישי",
-    childName: "נועה",
+    childName: "אלון",
     time: "12:00",
     driverId: PAPA_ID,
     status: "regular",
@@ -242,7 +242,7 @@ const INITIAL_PICKUPS: Pickup[] = [
   {
     id: "p_fri_omer",
     day: "שישי",
-    childName: "עומר",
+    childName: "בר",
     time: "12:00",
     driverId: MAMA_ID,
     status: "regular",
@@ -270,9 +270,9 @@ const INITIAL_LOGS: ActivityLog[] = [
     id: "log_3",
     timestamp: "2026-06-21T10:30:00",
     action: "הסעה דחופה",
-    details: "נועדה נסיעת חרום של נועה ביום רביעי עם אלון.",
+    details: "נועדה נסיעת חרום של אלון ביום רביעי עם אלון.",
     userRole: "parent",
-    childName: "נועה",
+    childName: "אלון",
   },
 ];
 
@@ -281,7 +281,7 @@ const INITIAL_ALERTS: AlertNotification[] = [
     id: "alert_1",
     timestamp: "2026-06-21T10:30:00",
     title: "הוגדרה נסיעה דחופה",
-    message: "הסעת חירום הוגדרה לנועה ביום רביעי בשעה 14:00 עם אלון",
+    message: "הסעת חירום הוגדרה לאלון ביום רביעי בשעה 14:00 עם אלון",
     type: "urgent",
     read: false,
   },
