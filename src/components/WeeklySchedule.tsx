@@ -8,7 +8,6 @@ import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN } from "../types";
 import { StorageEngine, subscribeToStore } from "../data";
 import { Calendar, Clock, User, AlertTriangle, Edit3, Trash2, CheckCircle, ShieldAlert, Plus, HelpCircle, Phone, Sparkles, PlusCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { toPng } from "html-to-image";
 
 interface WeeklyScheduleProps {
   userRole: "parent" | "driver" | "child";
@@ -24,9 +23,6 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   // אישור פנימי לביטול/מחיקה ואיפוס שבוע ללא window.confirm (בשל חסימת iframe)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [resetWeekConfirmOpen, setResetWeekConfirmOpen] = useState(false);
-
-  // מצבי ייצוא תמונה
-  const [isExporting, setIsExporting] = useState(false);
 
   // מודאל עריכה
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -499,70 +495,6 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     StorageEngine.addLog("איפוס שבוע הבא", "בוצע איפוס גלובלי והתחלת שבוע חדש במערכת על ידי ההורים.", "parent");
     StorageEngine.addAlert("שבוע חדש התחיל!", "כל האיסופים הקבועים שוחזרו ואופסו מביצוע. מוכנים לשבוע החדש!", "success");
     setResetWeekConfirmOpen(false);
-  };
-
-  const handlePrint = () => {
-    StorageEngine.addAlert(
-      "ייצוא להדפסה / PDF... 🖨️",
-      "כעת ייפתח חלון ההדפסה של הדפדפן. בחרו באפשרות 'שמירה כ-PDF' (Save as PDF) או שלחו ישירות למדפסת הביתית. להדפסה מלאה מומלץ לבחור בפריסה של מוד רוחבי (Landscape).",
-      "success"
-    );
-    setTimeout(() => {
-      window.print();
-    }, 600);
-  };
-
-  const handleExportImage = async () => {
-    setIsExporting(true);
-    try {
-      const node = document.getElementById("weekly_grid_export_target");
-      if (!node) {
-        setIsExporting(false);
-        return;
-      }
-      
-      // Because the element is "hidden md:block", on mobile screens it is "display: none".
-      // Reading from a display:none element yields an empty white page.
-      // We clone the node, style it to be visible but off-screen, render the clone, then remove it.
-      const clone = node.cloneNode(true) as HTMLElement;
-      clone.style.position = "absolute";
-      clone.style.top = "-9999px";
-      clone.style.left = "-9999px";
-      clone.style.width = "1200px";
-      clone.style.display = "block";
-      clone.classList.remove("hidden");
-      clone.classList.remove("md:block");
-      document.body.appendChild(clone);
-
-      // Wait a tiny bit for the browser to lay out the cloned node
-      await new Promise((resolve) => setTimeout(resolve, 150));
-
-      const dataUrl = await toPng(clone, {
-        backgroundColor: "#FFFDF9",
-        style: {
-          transform: "scale(1)",
-          transformOrigin: "top left",
-        },
-        width: 1200,
-        height: clone.scrollHeight || 1000,
-        cacheBust: true,
-      });
-
-      document.body.removeChild(clone);
-
-      const link = document.createElement("a");
-      link.download = `Family_Shuttle_Weekly_Schedule_${Date.now()}.png`;
-      link.href = dataUrl;
-      link.click();
-
-      StorageEngine.addLog("ייצוא לוח כתמונה", "יוצאה תמונה רחבה של הלוח השבועי בהצלחה.", "parent");
-      StorageEngine.addAlert("ייצוא בהצלחה! 🎉", "הלוח השבועי יוצר כתמונה רחבה והורד למכשירכם.", "success");
-    } catch (err) {
-      console.error("Image export failed:", err);
-      StorageEngine.addAlert("שגיאה בייצוא", "התרחשה שגיאה במהלך יצירת התמונה. אנא נסו שוב.", "urgent");
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   const handleToggleCompletion = (id: string) => {
@@ -1384,48 +1316,6 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             );
           })}
         </div>
-      </div>
-
-      {/* כפתורי ייצוא והדפסה לוח שבועי - מופיע בתחתית */}
-      <div className="flex flex-col items-center justify-center py-6 px-4 border-t-2 border-dashed border-slate-300 mt-6 space-y-4 no-print" style={{ direction: "rtl" }}>
-        <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">🖨️ אפשרויות שמירה, הדפסה וייצוא הלו״ז</h4>
-        
-        <div className="flex flex-wrap justify-center gap-4 w-full max-w-2xl">
-          {/* כפתור הדפסה נקייה ל-PDF */}
-          <button
-            onClick={handlePrint}
-            className="px-6 py-3 border-4 border-[#141414] bg-[#E8FFF2] text-emerald-950 font-black text-sm uppercase tracking-wide flex items-center gap-2.5 shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 cursor-pointer hover:bg-white transition-all"
-            id="btn_print_weekly_grid"
-          >
-            <span>🖨️</span>
-            <span>הדפסת הלו״ז או שמירה כ-PDF</span>
-          </button>
-
-          {/* כפתור ייצוא כתמונה */}
-          <button
-            onClick={handleExportImage}
-            disabled={isExporting}
-            className="px-6 py-3 border-4 border-[#141414] bg-[#F3E8FF] text-purple-950 font-black text-sm uppercase tracking-wide flex items-center gap-2.5 shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 cursor-pointer hover:bg-white transition-all disabled:opacity-50"
-            id="btn_export_weekly_grid_image"
-          >
-            {isExporting ? (
-              <>
-                <span className="animate-spin">🔄</span>
-                <span>מייצר תמונה...</span>
-              </>
-            ) : (
-              <>
-                <span>📸</span>
-                <span>הורדת צילום הלו״ז כתמונה</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* טיפ בטיחות והסבר שימוש בסביבות שונות */}
-        <p className="text-[11px] text-slate-500 text-center max-w-lg leading-relaxed font-mono">
-          💡 <strong>טיפ שימושי:</strong> במידה ואתם משתמשים במערכת בתוך סביבת הפיתוח או ה-iframe, מומלץ ללחוץ על כפתור פתיחת הקישור החיצוני (החץ הלבן בראש הדפדפן) כדי להדפיס או להוריד קבצים ללא הגבלות אבטחה של הדפדפן.
-        </p>
       </div>
 
       {/* רשימת שאר נסיעות המשפחה השבוע - להשפעת תיאום גמיש (מופיע רק במצב נהג פעיל שחוסך מקום) */}
