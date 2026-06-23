@@ -359,6 +359,50 @@ let currentLogs: ActivityLog[] = loadData(KEYS.LOGS, INITIAL_LOGS);
 let currentAlerts: AlertNotification[] = loadData(KEYS.ALERTS, INITIAL_ALERTS);
 let currentMasterPickups: Pickup[] = loadData(KEYS.MASTER_PICKUPS, INITIAL_PICKUPS);
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: null,
+      email: null,
+      emailVerified: null,
+      isAnonymous: null,
+      tenantId: null,
+      providerInfo: []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 // פונקציית עזר לאתחול (seeding) של אוספים ריקים
 async function seedCollectionIfEmpty(collectionName: string, initialData: any[]) {
   try {
@@ -371,7 +415,7 @@ async function seedCollectionIfEmpty(collectionName: string, initialData: any[])
       }
     }
   } catch (err) {
-    console.error(`Error during seeding ${collectionName}:`, err);
+    handleFirestoreError(err, OperationType.WRITE, collectionName);
   }
 }
 
@@ -399,6 +443,8 @@ async function startFirebaseSync() {
       saveData(KEYS.DRIVERS, list);
       notifyAll();
     }
+  }, (err) => {
+    handleFirestoreError(err, OperationType.GET, "drivers");
   });
 
   onSnapshot(collection(db, "pickups"), (snapshot) => {
@@ -412,6 +458,8 @@ async function startFirebaseSync() {
       saveData(KEYS.PICKUPS, list);
       notifyAll();
     }
+  }, (err) => {
+    handleFirestoreError(err, OperationType.GET, "pickups");
   });
 
   onSnapshot(collection(db, "logs"), (snapshot) => {
@@ -426,6 +474,8 @@ async function startFirebaseSync() {
       saveData(KEYS.LOGS, list);
       notifyAll();
     }
+  }, (err) => {
+    handleFirestoreError(err, OperationType.GET, "logs");
   });
 
   onSnapshot(collection(db, "alerts"), (snapshot) => {
@@ -440,6 +490,8 @@ async function startFirebaseSync() {
       saveData(KEYS.ALERTS, list);
       notifyAll();
     }
+  }, (err) => {
+    handleFirestoreError(err, OperationType.GET, "alerts");
   });
 
   onSnapshot(collection(db, "master_pickups"), (snapshot) => {
@@ -453,6 +505,8 @@ async function startFirebaseSync() {
       saveData(KEYS.MASTER_PICKUPS, list);
       notifyAll();
     }
+  }, (err) => {
+    handleFirestoreError(err, OperationType.GET, "master_pickups");
   });
 }
 
@@ -494,7 +548,7 @@ async function syncDriversInFirestore(newDrivers: Driver[]) {
       await setDoc(doc(db, "drivers", d.id), cleanForFirestore(d));
     }
   } catch (err) {
-    console.error("Firestore sync Error (drivers):", err);
+    handleFirestoreError(err, OperationType.WRITE, "drivers");
   }
 }
 
@@ -513,7 +567,7 @@ async function syncPickupsInFirestore(newPickups: Pickup[]) {
       await setDoc(doc(db, "pickups", p.id), cleanForFirestore(p));
     }
   } catch (err) {
-    console.error("Firestore sync Error (pickups):", err);
+    handleFirestoreError(err, OperationType.WRITE, "pickups");
   }
 }
 
@@ -532,7 +586,7 @@ async function syncLogsInFirestore(newLogs: ActivityLog[]) {
       await setDoc(doc(db, "logs", l.id), cleanForFirestore(l));
     }
   } catch (err) {
-    console.error("Firestore sync Error (logs):", err);
+    handleFirestoreError(err, OperationType.WRITE, "logs");
   }
 }
 
@@ -551,7 +605,7 @@ async function syncAlertsInFirestore(newAlerts: AlertNotification[]) {
       await setDoc(doc(db, "alerts", a.id), cleanForFirestore(a));
     }
   } catch (err) {
-    console.error("Firestore sync Error (alerts):", err);
+    handleFirestoreError(err, OperationType.WRITE, "alerts");
   }
 }
 
@@ -570,7 +624,7 @@ async function syncMasterPickupsInFirestore(newMasterPickups: Pickup[]) {
       await setDoc(doc(db, "master_pickups", p.id), cleanForFirestore(p));
     }
   } catch (err) {
-    console.error("Firestore sync Error (master_pickups):", err);
+    handleFirestoreError(err, OperationType.WRITE, "master_pickups");
   }
 }
 

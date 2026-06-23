@@ -46,6 +46,22 @@
         "type": "string",
         "read": "boolean"
       }
+    },
+    "master_pickups": {
+      "schema": {
+        "id": "string",
+        "day": "string",
+        "childName": "string",
+        "time": "string",
+        "driverId": "string",
+        "status": "string",
+        "notes": "string",
+        "completed": "boolean",
+        "babysitterType": "string",
+        "isRecurring": "boolean",
+        "isOneTimeOverride": "boolean",
+        "originalRecurringValues": "object"
+      }
     }
   }
 }

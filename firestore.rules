@@ -13,5 +13,8 @@ service cloud.firestore {
     match /alerts/{document} {
       allow read, write: if true;
     }
+    match /master_pickups/{document} {
+      allow read, write: if true;
+    }
   }
 }

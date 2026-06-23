@@ -1976,6 +1976,76 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                   </div>
                 </div>
 
+                {/* הגדרת מחזוריות וסוג השינוי (קבוע או חד-פעמי) */}
+                <div className="space-y-2 p-3 bg-amber-50/50 border-2 border-[#141414] space-y-2">
+                  <label className="text-xs font-black text-slate-900 block">סוג האירוע במערכת / RECURRENCE TYPE</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormIsRecurring(true);
+                      }}
+                      className={`text-xs py-2 px-1 border-2 font-bold transition-all text-center flex items-center justify-center gap-1 ${
+                        formIsRecurring
+                          ? "bg-[#141414] text-white border-[#141414] shadow-none"
+                          : "bg-white border-[#141414] text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_0_#141414]"
+                      }`}
+                    >
+                      🔁 קבוע בכל שבוע
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormIsRecurring(false);
+                        setFormOverrideType("onetime");
+                      }}
+                      className={`text-xs py-2 px-1 border-2 font-bold transition-all text-center flex items-center justify-center gap-1 ${
+                        !formIsRecurring
+                          ? "bg-[#141414] text-white border-[#141414] shadow-none"
+                          : "bg-white border-[#141414] text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_0_#141414]"
+                      }`}
+                    >
+                      📅 חד-פעמי לשבוע זה
+                    </button>
+                  </div>
+
+                  {/* אם זה אירוע חוזר קבוע, וכעת אנחנו במצב עריכה - נאפשר לקבוע האם העריכה הנוכחית היא קבועה או חד-פעמית */}
+                  {formIsRecurring && editingPickup && (
+                    <div className="mt-2 pt-2 border-t border-dashed border-slate-350 space-y-1.5">
+                      <label className="text-[11px] font-black text-amber-900 block">יישום שינויי עריכה / EDIT OPTION</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFormOverrideType("permanent")}
+                          className={`text-[10px] py-1.5 px-2 border-2 font-bold transition-all ${
+                            formOverrideType === "permanent"
+                              ? "bg-amber-600 text-white border-[#141414] shadow-none"
+                              : "bg-white border-[#141414] text-amber-900 hover:bg-amber-100/30 shadow-[1px_1px_0_0_#141414]"
+                          }`}
+                        >
+                          💾 שינוי קבוע לכל שבוע
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormOverrideType("onetime")}
+                          className={`text-[10px] py-1.5 px-2 border-2 font-bold transition-all ${
+                            formOverrideType === "onetime"
+                              ? "bg-amber-600 text-white border-[#141414] shadow-none"
+                              : "bg-white border-[#141414] text-amber-900 hover:bg-amber-100/30 shadow-[1px_1px_0_0_#141414]"
+                          }`}
+                        >
+                          ⚡ חריגה חד-פעמית לשבוע זה
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-amber-900 font-bold leading-tight bg-white p-1 border border-amber-200">
+                        {formOverrideType === "onetime" 
+                          ? "⚠️ שינוי חד-פעמי יישמר רק לשבוע זה, ויתאפס בשחזור שבוע הבא לערך המקורי." 
+                          : "🌍 שינוי קבוע יעדכן את לוח הבסיס לצמיתות ותמיד יישאר משויך."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-800 block">הערות אישיות לחוג / נהג</label>
                   <textarea
