@@ -501,6 +501,17 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     setResetWeekConfirmOpen(false);
   };
 
+  const handlePrint = () => {
+    StorageEngine.addAlert(
+      "ייצוא להדפסה / PDF... 🖨️",
+      "כעת ייפתח חלון ההדפסה של הדפדפן. בחרו באפשרות 'שמירה כ-PDF' (Save as PDF) או שלחו ישירות למדפסת הביתית. להדפסה מלאה מומלץ לבחור בפריסה של מוד רוחבי (Landscape).",
+      "success"
+    );
+    setTimeout(() => {
+      window.print();
+    }, 600);
+  };
+
   const handleExportImage = async () => {
     setIsExporting(true);
     try {
@@ -1375,26 +1386,46 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         </div>
       </div>
 
-      {/* כפתור ייצוא לוח שבועי כתמונה - מופיע בתחתית */}
-      <div className="flex justify-center items-center py-6 px-4 border-t-2 border-dashed border-slate-300 mt-6" style={{ direction: "rtl" }}>
-        <button
-          onClick={handleExportImage}
-          disabled={isExporting}
-          className="px-6 py-3 border-4 border-[#141414] bg-[#F3E8FF] text-purple-950 font-black text-sm uppercase tracking-wide flex items-center gap-2.5 shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 cursor-pointer hover:bg-white transition-all disabled:opacity-50"
-          id="btn_export_weekly_grid_image"
-        >
-          {isExporting ? (
-            <>
-              <span className="animate-spin">🔄</span>
-              <span>מייצר תמונה... / GENERATING IMAGE</span>
-            </>
-          ) : (
-            <>
-              <span>📸</span>
-              <span>ייצוא הלו״ז המלא כתמונה (רחב) / EXPORT TABLE AS IMAGE</span>
-            </>
-          )}
-        </button>
+      {/* כפתורי ייצוא והדפסה לוח שבועי - מופיע בתחתית */}
+      <div className="flex flex-col items-center justify-center py-6 px-4 border-t-2 border-dashed border-slate-300 mt-6 space-y-4 no-print" style={{ direction: "rtl" }}>
+        <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">🖨️ אפשרויות שמירה, הדפסה וייצוא הלו״ז</h4>
+        
+        <div className="flex flex-wrap justify-center gap-4 w-full max-w-2xl">
+          {/* כפתור הדפסה נקייה ל-PDF */}
+          <button
+            onClick={handlePrint}
+            className="px-6 py-3 border-4 border-[#141414] bg-[#E8FFF2] text-emerald-950 font-black text-sm uppercase tracking-wide flex items-center gap-2.5 shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 cursor-pointer hover:bg-white transition-all"
+            id="btn_print_weekly_grid"
+          >
+            <span>🖨️</span>
+            <span>הדפסת הלו״ז או שמירה כ-PDF</span>
+          </button>
+
+          {/* כפתור ייצוא כתמונה */}
+          <button
+            onClick={handleExportImage}
+            disabled={isExporting}
+            className="px-6 py-3 border-4 border-[#141414] bg-[#F3E8FF] text-purple-950 font-black text-sm uppercase tracking-wide flex items-center gap-2.5 shadow-[4px_4px_0_0_#141414] hover:shadow-none active:translate-y-0.5 cursor-pointer hover:bg-white transition-all disabled:opacity-50"
+            id="btn_export_weekly_grid_image"
+          >
+            {isExporting ? (
+              <>
+                <span className="animate-spin">🔄</span>
+                <span>מייצר תמונה...</span>
+              </>
+            ) : (
+              <>
+                <span>📸</span>
+                <span>הורדת צילום הלו״ז כתמונה</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* טיפ בטיחות והסבר שימוש בסביבות שונות */}
+        <p className="text-[11px] text-slate-500 text-center max-w-lg leading-relaxed font-mono">
+          💡 <strong>טיפ שימושי:</strong> במידה ואתם משתמשים במערכת בתוך סביבת הפיתוח או ה-iframe, מומלץ ללחוץ על כפתור פתיחת הקישור החיצוני (החץ הלבן בראש הדפדפן) כדי להדפיס או להוריד קבצים ללא הגבלות אבטחה של הדפדפן.
+        </p>
       </div>
 
       {/* רשימת שאר נסיעות המשפחה השבוע - להשפעת תיאום גמיש (מופיע רק במצב נהג פעיל שחוסך מקום) */}

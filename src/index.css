@@ -69,3 +69,89 @@ body {
   background: #333333;
 }
 
+/* הדפסה וייצוא ל-PDF */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 12px;
+  }
+
+  /* ביומן מודפס החוצה כל השוליים והגבולות של התוכנה */
+  #family_shuttle_root_app {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: #ffffff !important;
+  }
+
+  /* הסתרת כפתורי עבודה, לוגו, סימולציות, מסננים, יומן חריגים ורקעים */
+  header, footer, nav, button, .no-print, [role="tablist"], .md\:hidden {
+    display: none !important;
+  }
+
+  /* חסימת שאר האזורים בעמוד כדי להשאיר רק את הגריד */
+  #unassigned_pickups_section,
+  #system-alerts-container,
+  #history-log-section,
+  #driver-library-section,
+  #notifications-section,
+  #mobile_day_layout,
+  #mobile_day_layout_parent,
+  #parent_panel_root > div:not(:first-child),
+  #parent_stats_row,
+  #parent_stats_bar,
+  #driver_selector_banner,
+  #simulated_day_picker,
+  #desktop-side-logs,
+  .pwa-badge,
+  .pwa-panel,
+  .alert-toast,
+  form {
+    display: none !important;
+  }
+
+  /* תצוגה נקייה של הלוח הראשי */
+  #weekly_grid_export_target {
+    display: block !important;
+    position: relative !important;
+    border: 3px solid #141414 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    background-color: #ffffff !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 3px solid #141414 !important;
+  }
+
+  th, td {
+    border: 2px solid #141414 !important;
+    color: #141414 !important;
+    padding: 10px !important;
+    font-size: 13px !important;
+    background-color: transparent !important;
+  }
+
+  th {
+    background-color: #D1D0CC !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 1cm;
+  }
+}
+
