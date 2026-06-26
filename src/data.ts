@@ -404,14 +404,21 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 // פונקציית עזר לאתחול (seeding) של אוספים ריקים
-async function seedCollectionIfEmpty(collectionName: string, initialData: any[]) {
+async function syncOrSeedCollection<T extends { id: string }>(
+  collectionName: string,
+  currentLocalData: T[],
+  defaultInitialData: T[]
+) {
   try {
     const colRef = collection(db, collectionName);
     const snap = await getDocs(colRef);
     if (snap.empty) {
       console.log(`Seeding Firestore collection: ${collectionName}`);
-      for (const item of initialData) {
-        await setDoc(doc(db, collectionName, item.id), item);
+      // אם יש מידע מקומי שכבר נשמר בדפדפן זה, נסנכרן אותו לענן כדי שלא ילך לאיבוד.
+      // אחרת, נשתמש בנתוני ברירת המחדל ההתחלתיים של המערכת.
+      const dataToSeed = currentLocalData && currentLocalData.length > 0 ? currentLocalData : defaultInitialData;
+      for (const item of dataToSeed) {
+        await setDoc(doc(db, collectionName, item.id), cleanForFirestore(item));
       }
     }
   } catch (err) {
@@ -421,15 +428,11 @@ async function seedCollectionIfEmpty(collectionName: string, initialData: any[])
 
 // אתחול הסנכרון והאזנות בזמן אמת
 async function startFirebaseSync() {
-  const isLocalStorageSeeded = localStorage.getItem("kid_sync_v1_seeded");
-  if (!isLocalStorageSeeded) {
-    await seedCollectionIfEmpty("drivers", INITIAL_DRIVERS);
-    await seedCollectionIfEmpty("pickups", INITIAL_PICKUPS);
-    await seedCollectionIfEmpty("logs", INITIAL_LOGS);
-    await seedCollectionIfEmpty("alerts", INITIAL_ALERTS);
-    await seedCollectionIfEmpty("master_pickups", INITIAL_PICKUPS);
-    localStorage.setItem("kid_sync_v1_seeded", "true");
-  }
+  await syncOrSeedCollection("drivers", currentDrivers, INITIAL_DRIVERS);
+  await syncOrSeedCollection("pickups", currentPickups, INITIAL_PICKUPS);
+  await syncOrSeedCollection("logs", currentLogs, INITIAL_LOGS);
+  await syncOrSeedCollection("alerts", currentAlerts, INITIAL_ALERTS);
+  await syncOrSeedCollection("master_pickups", currentMasterPickups, INITIAL_PICKUPS);
 
   // האזנות בזמן אמת לעדכונים מכל מכשיר/דפדפן
   onSnapshot(collection(db, "drivers"), (snapshot) => {
