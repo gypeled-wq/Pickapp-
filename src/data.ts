@@ -437,12 +437,9 @@ async function startFirebaseSync() {
     snapshot.forEach((doc) => {
       list.push(doc.data() as Driver);
     });
-    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
-    if (list.length > 0 || isSeeded) {
-      currentDrivers = list;
-      saveData(KEYS.DRIVERS, list);
-      notifyAll();
-    }
+    currentDrivers = list;
+    saveData(KEYS.DRIVERS, list);
+    notifyAll();
   }, (err) => {
     handleFirestoreError(err, OperationType.GET, "drivers");
   });
@@ -452,12 +449,9 @@ async function startFirebaseSync() {
     snapshot.forEach((doc) => {
       list.push(doc.data() as Pickup);
     });
-    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
-    if (list.length > 0 || isSeeded) {
-      currentPickups = list;
-      saveData(KEYS.PICKUPS, list);
-      notifyAll();
-    }
+    currentPickups = list;
+    saveData(KEYS.PICKUPS, list);
+    notifyAll();
   }, (err) => {
     handleFirestoreError(err, OperationType.GET, "pickups");
   });
@@ -467,13 +461,10 @@ async function startFirebaseSync() {
     snapshot.forEach((doc) => {
       list.push(doc.data() as ActivityLog);
     });
-    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
-    if (list.length > 0 || isSeeded) {
-      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      currentLogs = list;
-      saveData(KEYS.LOGS, list);
-      notifyAll();
-    }
+    list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    currentLogs = list;
+    saveData(KEYS.LOGS, list);
+    notifyAll();
   }, (err) => {
     handleFirestoreError(err, OperationType.GET, "logs");
   });
@@ -483,13 +474,10 @@ async function startFirebaseSync() {
     snapshot.forEach((doc) => {
       list.push(doc.data() as AlertNotification);
     });
-    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
-    if (list.length > 0 || isSeeded) {
-      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      currentAlerts = list;
-      saveData(KEYS.ALERTS, list);
-      notifyAll();
-    }
+    list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    currentAlerts = list;
+    saveData(KEYS.ALERTS, list);
+    notifyAll();
   }, (err) => {
     handleFirestoreError(err, OperationType.GET, "alerts");
   });
@@ -499,12 +487,9 @@ async function startFirebaseSync() {
     snapshot.forEach((doc) => {
       list.push(doc.data() as Pickup);
     });
-    const isSeeded = localStorage.getItem("kid_sync_v1_seeded");
-    if (list.length > 0 || isSeeded) {
-      currentMasterPickups = list;
-      saveData(KEYS.MASTER_PICKUPS, list);
-      notifyAll();
-    }
+    currentMasterPickups = list;
+    saveData(KEYS.MASTER_PICKUPS, list);
+    notifyAll();
   }, (err) => {
     handleFirestoreError(err, OperationType.GET, "master_pickups");
   });
@@ -532,7 +517,7 @@ function cleanForFirestore(obj: any): any {
   return obj;
 }
 
-// פונקציות לעדכון הנתונים ב-Firestore באופן אוטומטי
+// פונקציות לעדכון הנתונים ב-Firestore באופן אוטומטי (לשימוש גיבוי/העתקה מלאה)
 async function syncDriversInFirestore(newDrivers: Driver[]) {
   try {
     const snap = await getDocs(collection(db, "drivers"));
@@ -629,7 +614,7 @@ async function syncMasterPickupsInFirestore(newMasterPickups: Pickup[]) {
 }
 
 // ---------------------------------------------
-// מחלקה סינכרונית לניהול המחסן המדומה (כעת מקושרת ל-Firestore בזמן אמת)
+// מחלקה סינכרונית לניהול המחסן המדומה (מקושרת ל-Firestore בזמן אמת באופן אטומי)
 // ---------------------------------------------
 export const StorageEngine = {
   getDrivers(): Driver[] {
@@ -691,9 +676,8 @@ export const StorageEngine = {
     syncAlertsInFirestore(alerts);
   },
 
-  // הוספת לוג פעולה חדש
+  // הוספת לוג פעולה חדש באופן אטומי
   addLog(action: string, details: string, userRole: "parent" | "child" | "system", childName?: string) {
-    const logs = this.getLogs();
     const newLog: ActivityLog = {
       id: "log_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
       timestamp: new Date().toISOString(),
@@ -702,12 +686,17 @@ export const StorageEngine = {
       userRole,
       childName,
     };
-    this.saveLogs([newLog, ...logs]); // לוג חדש בראש הרשימה
+    currentLogs = [newLog, ...currentLogs];
+    saveData(KEYS.LOGS, currentLogs);
+    notifyAll();
+
+    setDoc(doc(db, "logs", newLog.id), cleanForFirestore(newLog)).catch((err) => {
+      console.error("Error writing log:", err);
+    });
   },
 
-  // הוספת התראת הורים חדשה
+  // הוספת התראת הורים חדשה באופן אטומי
   addAlert(title: string, message: string, type: "info" | "urgent" | "success" = "info") {
-    const alerts = this.getAlerts();
     const newAlert: AlertNotification = {
       id: "alert_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
       timestamp: new Date().toISOString(),
@@ -716,51 +705,79 @@ export const StorageEngine = {
       type,
       read: false,
     };
-    this.saveAlerts([newAlert, ...alerts]);
+    currentAlerts = [newAlert, ...currentAlerts];
+    saveData(KEYS.ALERTS, currentAlerts);
+    notifyAll();
+
+    setDoc(doc(db, "alerts", newAlert.id), cleanForFirestore(newAlert)).catch((err) => {
+      console.error("Error writing alert:", err);
+    });
   },
 
-  // ניהול נהגים
+  // ניהול נהגים - אטומי ומהיר
   addDriver(driverData: Omit<Driver, "id">): Driver {
-    const drivers = this.getDrivers();
     const newDriver: Driver = {
       ...driverData,
       id: "drv_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
     };
-    this.saveDrivers([...drivers, newDriver]);
+    currentDrivers = [...currentDrivers, newDriver];
+    saveData(KEYS.DRIVERS, currentDrivers);
+    notifyAll();
+
+    setDoc(doc(db, "drivers", newDriver.id), cleanForFirestore(newDriver)).catch((err) => {
+      console.error("Error writing driver:", err);
+    });
+
     this.addLog("הוספת נהג", `התווסף נהג חדש: ${newDriver.name} (${newDriver.type === "permanent" ? "קבוע" : "אורח"})`, "parent");
     this.addAlert("נוסף נהג חדש", `הנהג/ת ${newDriver.name} נוספ/ה לספריית הנהגים.`, "info");
     return newDriver;
   },
 
   updateDriver(updated: Driver) {
-    const drivers = this.getDrivers();
-    const index = drivers.findIndex((d) => d.id === updated.id);
+    const index = currentDrivers.findIndex((d) => d.id === updated.id);
     if (index !== -1) {
-      drivers[index] = updated;
-      this.saveDrivers(drivers);
+      currentDrivers[index] = updated;
+      saveData(KEYS.DRIVERS, currentDrivers);
+      notifyAll();
+
+      setDoc(doc(db, "drivers", updated.id), cleanForFirestore(updated)).catch((err) => {
+        console.error("Error updating driver:", err);
+      });
+
       this.addLog("עדכון נהג", `פרטי הנהג/ת ${updated.name} עודכנו במערכת.`, "parent");
     }
   },
 
   deleteDriver(id: string) {
-    const drivers = this.getDrivers();
-    const driver = drivers.find((d) => d.id === id);
+    const driver = currentDrivers.find((d) => d.id === id);
     if (driver) {
-      this.saveDrivers(drivers.filter((d) => d.id !== id));
+      currentDrivers = currentDrivers.filter((d) => d.id !== id);
+      saveData(KEYS.DRIVERS, currentDrivers);
+      notifyAll();
+
+      deleteDoc(doc(db, "drivers", id)).catch((err) => {
+        console.error("Error deleting driver:", err);
+      });
+
       this.addLog("מחיקת נהג", `הנהג/ת ${driver.name} נמחק/ה מספריית הנהגים.`, "parent");
     }
   },
 
-  // ניהול הסעות
+  // ניהול הסעות - אטומי ומהיר
   addPickup(pickupData: Omit<Pickup, "id">): Pickup {
-    const pickups = this.getPickups();
     const newPickup: Pickup = {
       ...pickupData,
       id: "p_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
     };
-    this.savePickups([...pickups, newPickup]);
+    currentPickups = [...currentPickups, newPickup];
+    saveData(KEYS.PICKUPS, currentPickups);
+    notifyAll();
 
-    const driver = this.getDrivers().find((d) => d.id === newPickup.driverId);
+    setDoc(doc(db, "pickups", newPickup.id), cleanForFirestore(newPickup)).catch((err) => {
+      console.error("Error adding pickup to Firestore:", err);
+    });
+
+    const driver = currentDrivers.find((d) => d.id === newPickup.driverId);
     const driverName = driver ? driver.name : "רכב לא ידוע";
     this.addLog(
       newPickup.status === "urgent" ? "הסעה דחופה" : "הוספת הסעה",
@@ -779,14 +796,17 @@ export const StorageEngine = {
   },
 
   updatePickup(updated: Pickup) {
-    const pickups = this.getPickups();
-    const index = pickups.findIndex((p) => p.id === updated.id);
+    const index = currentPickups.findIndex((p) => p.id === updated.id);
     if (index !== -1) {
-      const old = pickups[index];
-      pickups[index] = updated;
-      this.savePickups(pickups);
+      currentPickups[index] = updated;
+      saveData(KEYS.PICKUPS, currentPickups);
+      notifyAll();
 
-      const driver = this.getDrivers().find((d) => d.id === updated.driverId);
+      setDoc(doc(db, "pickups", updated.id), cleanForFirestore(updated)).catch((err) => {
+        console.error("Error updating pickup in Firestore:", err);
+      });
+
+      const driver = currentDrivers.find((d) => d.id === updated.driverId);
       const driverName = driver ? driver.name : "רכב לא ידוע";
 
       const logMsg = `האיסוף של ${updated.childName} ביום ${updated.day} עודכן לשעה ${updated.time} עם ${driverName}. ${updated.notes ? `הערות: ${updated.notes}` : ""}`;
@@ -802,26 +822,36 @@ export const StorageEngine = {
   },
 
   deletePickup(id: string) {
-    const pickups = this.getPickups();
-    const pickup = pickups.find((p) => p.id === id);
+    const pickup = currentPickups.find((p) => p.id === id);
     if (pickup) {
-      this.savePickups(pickups.filter((p) => p.id !== id));
+      currentPickups = currentPickups.filter((p) => p.id !== id);
+      saveData(KEYS.PICKUPS, currentPickups);
+      notifyAll();
+
+      deleteDoc(doc(db, "pickups", id)).catch((err) => {
+        console.error("Error deleting pickup from Firestore:", err);
+      });
+
       this.addLog("ביטול הסעה", `בוטלה ההסעה של ${pickup.childName} ביום ${pickup.day} בשעה ${pickup.time}`, "parent", pickup.childName);
       this.addAlert("ביטול הסעה", `בוטלה ההסעה של ${pickup.childName} ביום ${pickup.day} בשעה ${pickup.time}`, "urgent");
     }
   },
 
   togglePickupCompletion(id: string) {
-    const pickups = this.getPickups();
-    const index = pickups.findIndex((p) => p.id === id);
+    const index = currentPickups.findIndex((p) => p.id === id);
     if (index !== -1) {
-      const p = pickups[index];
-      p.completed = !p.completed;
-      this.savePickups(pickups);
+      const p = { ...currentPickups[index], completed: !currentPickups[index].completed };
+      currentPickups[index] = p;
+      saveData(KEYS.PICKUPS, currentPickups);
+      notifyAll();
+
+      setDoc(doc(db, "pickups", id), cleanForFirestore(p)).catch((err) => {
+        console.error("Error toggling pickup completion in Firestore:", err);
+      });
+
       const actionText = p.completed ? "הושלם בהצלחה" : "חזר לפעיל";
       this.addLog("עדכון סטטוס ביצוע", `האיסוף של ${p.childName} ביום ${p.day} סומן כ${actionText}`, p.completed ? "child" : "parent", p.childName);
       
-      // הוספת התראת עדכון סטטוס
       this.addAlert(
         "עדכון סטטוס איסוף",
         `האיסוף של ${p.childName} ביום ${p.day} שונה לסטטוס: ${actionText}`,
