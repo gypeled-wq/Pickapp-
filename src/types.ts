@@ -59,3 +59,30 @@ export interface AlertNotification {
 export const DAYS_OF_WEEK = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 export const DEFAULT_CHILDREN = ["יובל", "אלון", "בר"];
+
+export function isPickupLessThan12HoursAway(day: string, timeStr: string, driverId?: string): boolean {
+  const isUnassigned = !driverId || driverId === "unassigned" || driverId === "none";
+  if (!isUnassigned) return false;
+
+  const HEBREW_DAYS_CYCLE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+  const now = new Date();
+  const currentJsDayIdx = now.getDay(); // 0 is Sunday, 6 is Saturday
+
+  const targetDayIdx = HEBREW_DAYS_CYCLE.indexOf(day);
+  if (targetDayIdx === -1) return false;
+
+  const timeParts = timeStr.split(":");
+  if (timeParts.length !== 2) return false;
+  const hours = parseInt(timeParts[0], 10);
+  const minutes = parseInt(timeParts[1], 10);
+  if (isNaN(hours) || isNaN(minutes)) return false;
+
+  const upcomingDayDiff = (targetDayIdx - currentJsDayIdx + 7) % 7;
+  const upcomingTargetDate = new Date(now);
+  upcomingTargetDate.setDate(now.getDate() + upcomingDayDiff);
+  upcomingTargetDate.setHours(hours, minutes, 0, 0);
+
+  const diffHours = (upcomingTargetDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+  return diffHours > 0 && diffHours < 12;
+}
+

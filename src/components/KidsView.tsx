@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, FormEvent } from "react";
-import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN } from "../types";
+import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN, isPickupLessThan12HoursAway } from "../types";
 import { StorageEngine, subscribeToStore } from "../data";
 import { Calendar, Clock, Smile, Car, ShieldAlert, CheckCircle2, Compass, User, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -200,7 +200,14 @@ export default function KidsView() {
       {/* מדור האיסוף העיקרי של היום */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* כרטיס ראשי: מי אוסף אותי ומתי היום */}
-        <div className="lg:col-span-2 bg-white card-border p-6 shadow-flat space-y-6 flex flex-col justify-between" id="kids_today_card">
+        <div 
+          className={`lg:col-span-2 bg-white p-6 flex flex-col justify-between space-y-6 ${
+            todaysPickup && isPickupLessThan12HoursAway(todaysPickup.day, todaysPickup.time, todaysPickup.driverId)
+              ? "border-4 border-red-600 ring-4 ring-red-300 ring-offset-1" 
+              : "card-border shadow-flat"
+          }`} 
+          id="kids_today_card"
+        >
           <div>
             <div className="flex justify-between items-center mb-4 flex-row-reverse">
               <span className="bg-[#141414] text-white text-xs px-3 py-1 font-bold">
@@ -318,16 +325,19 @@ export default function KidsView() {
             {DAYS_OF_WEEK.map((day) => {
               const dayPickup = kidPickups.find((p) => p.day === day);
               const dayDriver = dayPickup ? drivers.find((d) => d.id === dayPickup.driverId) : null;
+              const isUrgentUnassigned = dayPickup ? isPickupLessThan12HoursAway(dayPickup.day, dayPickup.time, dayPickup.driverId) : false;
 
               return (
                 <div
                   key={day}
-                  className={`p-3 border-2 flex flex-col gap-1 transition-colors ${
-                    simulatedDay === day
-                      ? "bg-white border-[#141414] shadow-[2px_2px_0_0_#141414]"
+                  className={`p-3 flex flex-col gap-1 transition-colors ${
+                    isUrgentUnassigned
+                      ? "border-4 border-red-600 bg-red-50/25"
+                      : simulatedDay === day
+                      ? "bg-white border-[#141414] border-2 shadow-[2px_2px_0_0_#141414]"
                       : dayPickup?.completed
-                      ? "bg-[#D1D0CC] border-slate-400 text-slate-600 line-through"
-                      : "bg-[#F3F2EE] border-[#141414]"
+                      ? "bg-[#D1D0CC] border-slate-400 text-slate-600 line-through border-2"
+                      : "bg-[#F3F2EE] border-[#141414] border-2"
                   }`}
                 >
                   <div className="flex justify-between items-center flex-row-reverse">
@@ -427,44 +437,7 @@ export default function KidsView() {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800 block">האם אתם צריכים בייביסיטר? (או רק איסוף בלבד)</label>
-                  <div className="grid grid-cols-3 gap-2 flex-row-reverse">
-                    <button
-                      type="button"
-                      onClick={() => setReqBabysitter("none")}
-                      className={`text-[10.5px] py-2 px-1 border-2 border-[#141414] font-bold transition-colors ${
-                        reqBabysitter === "none"
-                          ? "bg-[#141414] text-white"
-                          : "bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      🚗 איסוף בלבד
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReqBabysitter("babysitter_only")}
-                      className={`text-[10.5px] py-2 px-1 border-2 border-[#141414] font-bold transition-colors ${
-                        reqBabysitter === "babysitter_only"
-                          ? "bg-amber-600 text-white"
-                          : "bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      🧸 בייביסיטר
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReqBabysitter("both")}
-                      className={`text-[10.5px] py-2 px-1 border-2 border-[#141414] font-bold transition-colors ${
-                        reqBabysitter === "both"
-                          ? "bg-indigo-600 text-white"
-                          : "bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      🚗+🧸 גם וגם
-                    </button>
-                  </div>
-                </div>
+
 
                 <div className="flex justify-end gap-2 pt-2">
                   <button
