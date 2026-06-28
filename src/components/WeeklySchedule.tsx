@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN, isPickupLessThan12HoursAway } from "../types";
 import { StorageEngine, subscribeToStore } from "../data";
-import { Calendar, Clock, User, AlertTriangle, Edit3, Trash2, CheckCircle, ShieldAlert, Plus, HelpCircle, Phone, Sparkles, PlusCircle, MessageSquare } from "lucide-react";
+import { Calendar, Clock, User, AlertTriangle, Edit3, Trash2, CheckCircle, ShieldAlert, Plus, HelpCircle, Phone, Sparkles, PlusCircle, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface WeeklyScheduleProps {
@@ -19,6 +19,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDayTab, setSelectedDayTab] = useState("ראשון"); // For mobile day tabs
   const [driverFilter, setDriverFilter] = useState<"only-mine" | "all">("only-mine"); // For driver focus view
+  const [isUnassignedExpanded, setIsUnassignedExpanded] = useState(false);
 
   // אישור פנימי לביטול/מחיקה ואיפוס שבוע ללא window.confirm (בשל חסימת iframe)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -759,68 +760,85 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
       {/* מדור נסיעות פנויות הממתינות לשיבוץ */}
       {unassignedPickups.length > 0 && (
-        <div className="bg-[#FFFCE8] border-4 border-[#141414] tech-shadow p-5 text-right space-y-3 font-mono" style={{ direction: "rtl" }}>
-          <h4 className="text-sm font-black text-amber-955 flex items-center gap-1.5 flex-row-reverse">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-            </span>
-            <span>📋 נסיעות פנויות הממתינות לשיבוץ נהג ({unassignedPickups.length})</span>
-          </h4>
-          <p className="text-xs text-amber-950/85 font-black leading-normal">
-            מזוהות נסיעות בלוח ללא נהג מוגדר. נהגים קבועים או אורחים יכולים לשבץ את עצמם בקליק מהיר:
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-            {unassignedPickups.map((p) => {
-              const driverNameActive = activeDriverId ? drivers.find(d => d.id === activeDriverId)?.name : "";
-              const isUrgentUnassigned = isPickupLessThan12HoursAway(p.day, p.time, p.driverId);
-              return (
-                <div key={p.id} className={`bg-white p-3.5 flex flex-col justify-between space-y-2 hover:bg-amber-50/20 ${
-                  isUrgentUnassigned 
-                    ? "border-4 border-red-600 ring-4 ring-red-200" 
-                    : "border-2 border-[#141414] shadow-[2px_2px_0_0_#141414]"
-                }`}>
-                  <div className="flex justify-between items-center flex-row-reverse border-b border-dashed border-slate-350 pb-1.5">
-                    <span className="font-extrabold text-[#141414] text-xs">יום {p.day} • {p.time}</span>
-                    <span className="bg-amber-100 text-amber-950 text-[10px] px-1.5 py-0.5 border border-amber-950 font-black font-mono">
-                      {p.childName}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-700 space-y-1">
-                    {p.notes ? <p className="italic">🎯 &quot;{p.notes}&quot;</p> : <p className="text-slate-400">אין הערות מיוחדות</p>}
-                    {p.babysitterType && p.babysitterType !== "none" && (
-                      <span className="inline-block mt-1 font-black text-[10px] bg-indigo-50 text-[#141414] border border-indigo-300 px-1.5 py-0.5 rounded">
-                        🧸 {p.babysitterType === "babysitter_only" ? "בייביסיטר בלבד" : "איסוף + בייביסיטר"}
-                      </span>
-                    )}
-                  </div>
-                  {userRole === "driver" && activeDriverId ? (
-                    <button
-                      onClick={() => {
-                        StorageEngine.updatePickup({ ...p, driverId: activeDriverId });
-                        StorageEngine.addLog(
-                          "שיבוץ נהג עצמי",
-                          `הנהג/ת ${driverNameActive || activeDriverId} לקח/ה אחריות על האיסוף של ${p.childName} ביום ${p.day} בשעה ${p.time}.`,
-                          "system",
-                          p.childName
-                        );
-                        StorageEngine.addAlert(
-                          "שיבוץ נסיעה פנויה",
-                          `${driverNameActive || "נהג"} שיבץ/ה את עצמו לאיסוף של ${p.childName} ביום ${p.day}.`,
-                          "success"
-                        );
-                      }}
-                      className="w-full py-1.5 text-center bg-[#141414] text-white hover:bg-white hover:text-black hover:border-black font-black text-[11px] border-2 border-[#141414] transition-all cursor-pointer shadow-[2px_2px_0_0_#141414] active:translate-y-0.5 active:shadow-none"
-                    >
-                      🖐 אני אקח את זה!
-                    </button>
-                  ) : (
-                    <p className="text-[10px] text-amber-900 border border-transparent italic">אנא התחבר כמלווה/נהג כדי לשבץ את עצמך</p>
-                  )}
-                </div>
-              );
-            })}
+        <div 
+          className="bg-[#FFFCE8] border-4 border-red-600 shadow-[4px_4px_0_0_#dc2626] p-5 text-right space-y-3 font-mono" 
+          style={{ direction: "rtl" }}
+        >
+          <div 
+            onClick={() => setIsUnassignedExpanded(!isUnassignedExpanded)}
+            className="flex justify-between items-center cursor-pointer select-none pb-1 flex-row-reverse"
+          >
+            <h4 className="text-sm font-black text-red-700 flex items-center gap-1.5 flex-row-reverse">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+              </span>
+              <span>📋 נסיעות פנויות הממתינות לשיבוץ נהג ({unassignedPickups.length})</span>
+            </h4>
+            <div className="flex items-center gap-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1 border-2 border-red-600 shadow-[1.5px_1.5px_0_0_#dc2626] active:translate-y-0.5 active:shadow-none transition-all">
+              <span>{isUnassignedExpanded ? "מזער" : "הרחב"}</span>
+              {isUnassignedExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
           </div>
+
+          {isUnassignedExpanded && (
+            <div className="space-y-3 pt-2 border-t-2 border-dashed border-red-300">
+              <p className="text-xs text-amber-950/85 font-black leading-normal">
+                מזוהות נסיעות בלוח ללא נהג מוגדר. נהגים קבועים או אורחים יכולים לשבץ את עצמם בקליק מהיר:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                {unassignedPickups.map((p) => {
+                  const driverNameActive = activeDriverId ? drivers.find(d => d.id === activeDriverId)?.name : "";
+                  const isUrgentUnassigned = isPickupLessThan12HoursAway(p.day, p.time, p.driverId);
+                  return (
+                    <div key={p.id} className={`bg-white p-3.5 flex flex-col justify-between space-y-2 hover:bg-amber-50/20 ${
+                      isUrgentUnassigned 
+                        ? "border-4 border-red-600 ring-4 ring-red-200" 
+                        : "border-2 border-[#141414] shadow-[2px_2px_0_0_#141414]"
+                    }`}>
+                      <div className="flex justify-between items-center flex-row-reverse border-b border-dashed border-slate-350 pb-1.5">
+                        <span className="font-extrabold text-[#141414] text-xs">יום {p.day} • {p.time}</span>
+                        <span className="bg-amber-100 text-amber-950 text-[10px] px-1.5 py-0.5 border border-amber-950 font-black font-mono">
+                          {p.childName}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-700 space-y-1">
+                        {p.notes ? <p className="italic">🎯 &quot;{p.notes}&quot;</p> : <p className="text-slate-400">אין הערות מיוחדות</p>}
+                        {p.babysitterType && p.babysitterType !== "none" && (
+                          <span className="inline-block mt-1 font-black text-[10px] bg-indigo-50 text-[#141414] border border-indigo-300 px-1.5 py-0.5 rounded">
+                            🧸 {p.babysitterType === "babysitter_only" ? "בייביסיטר בלבד" : "איסוף + בייביסיטר"}
+                          </span>
+                        )}
+                      </div>
+                      {userRole === "driver" && activeDriverId ? (
+                        <button
+                          onClick={() => {
+                            StorageEngine.updatePickup({ ...p, driverId: activeDriverId });
+                            StorageEngine.addLog(
+                              "שיבוץ נהג עצמי",
+                              `הנהג/ת ${driverNameActive || activeDriverId} לקח/ה אחריות על האיסוף של ${p.childName} ביום ${p.day} בשעה ${p.time}.`,
+                              "system",
+                              p.childName
+                            );
+                            StorageEngine.addAlert(
+                              "שיבוץ נסיעה פנויה",
+                              `${driverNameActive || "נהג"} שיבץ/ה את עצמו לאיסוף של ${p.childName} ביום ${p.day}.`,
+                              "success"
+                            );
+                          }}
+                          className="w-full py-1.5 text-center bg-[#141414] text-white hover:bg-white hover:text-black hover:border-black font-black text-[11px] border-2 border-[#141414] transition-all cursor-pointer shadow-[2px_2px_0_0_#141414] active:translate-y-0.5 active:shadow-none"
+                        >
+                          🖐 אני אקח את זה!
+                        </button>
+                      ) : (
+                        <p className="text-[10px] text-amber-900 border border-transparent italic">אנא התחבר כמלווה/נהג כדי לשבץ את עצמך</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
