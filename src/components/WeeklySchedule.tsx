@@ -42,6 +42,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   const [formDay, setFormDay] = useState("ראשון");
   const [formChildren, setFormChildren] = useState<string[]>(["יובל"]);
   const [formTime, setFormTime] = useState("13:30");
+  const [formEndTime, setFormEndTime] = useState("");
   const [formDriverId, setFormDriverId] = useState("");
   const [formStatus, setFormStatus] = useState<"regular" | "urgent">("regular");
   const [formNotes, setFormNotes] = useState("");
@@ -151,7 +152,8 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
   // שליחת תזכורת נסיעה או שינוי דרך הווטסאפ (WhatsApp)
   const shareOnWhatsApp = (pickup: Pickup) => {
     const driver = drivers.find((d) => d.id === pickup.driverId);
-    const text = `🚗 *עדכון נסיעה חשוב מסהרון* 🚗\n\n*יום:* יום ${pickup.day}\n*שעה:* ${pickup.time}\n*עבור הילדים:* ${pickup.childName}\n*הנהג/ת המשויך:* ${driver ? driver.name : "טרם שוייך"}\n${driver?.phone ? `*טלפון:* ${driver.phone}` : ""}\n${pickup.notes ? `*הערות איסוף:* ${pickup.notes}` : ""}\n\nנא לאשר קבלת ההסעה! נסיעה בטוחה! 🧡🚲`;
+    const timeStr = pickup.endTime ? `${pickup.time} עד ${pickup.endTime}` : pickup.time;
+    const text = `🚗 *עדכון נסיעה חשוב מסהרון* 🚗\n\n*יום:* יום ${pickup.day}\n*שעה:* ${timeStr}\n*עבור הילדים:* ${pickup.childName}\n*הנהג/ת המשויך:* ${driver ? driver.name : "טרם שוייך"}\n${driver?.phone ? `*טלפון:* ${driver.phone}` : ""}\n${pickup.notes ? `*הערות איסוף:* ${pickup.notes}` : ""}\n\nנא לאשר קבלת ההסעה! נסיעה בטוחה! 🧡🚲`;
     
     let phoneNum = driver?.phone || "";
     if (phoneNum) {
@@ -311,6 +313,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     setFormDay(day);
     setFormChildren([child]);
     setFormTime("13:30");
+    setFormEndTime("");
     if (drivers.length > 0) {
       setFormDriverId(drivers[0].id);
     } else {
@@ -332,6 +335,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
     const parsed = pickup.childName.split(",").map(c => c.trim()).filter(Boolean);
     setFormChildren(parsed.length > 0 ? parsed : ["יובל"]);
     setFormTime(pickup.time);
+    setFormEndTime(pickup.endTime || "");
     setFormDriverId(pickup.driverId || "unassigned");
     setFormStatus(pickup.status);
     setFormNotes(pickup.notes);
@@ -376,6 +380,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
       if (isOneTime && !originalVals) {
         originalVals = {
           time: editingPickup.time,
+          endTime: editingPickup.endTime || "",
           driverId: editingPickup.driverId,
           notes: editingPickup.notes,
           status: editingPickup.status,
@@ -390,6 +395,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         day: formDay,
         childName: childNamesString,
         time: formTime,
+        endTime: formEndTime,
         driverId: targetDriverId,
         status: formStatus,
         notes: formNotes,
@@ -440,6 +446,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
         day: formDay,
         childName: childNamesString,
         time: formTime,
+        endTime: formEndTime,
         driverId: targetDriverId,
         status: formStatus,
         notes: formNotes,
@@ -1001,9 +1008,19 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
               <tr key={day} className="hover:bg-[#F2F2EF] transition-colors">
                 {/* עמודת היום */}
                 <td className="py-5 px-4 font-black text-[#141414] text-sm align-middle bg-[#D1D0CC] border-l-4 border-b-2 border-[#141414]">
-                  <div className="flex items-center gap-1.5 flex-row-reverse">
-                    <Calendar className="w-4 h-4" />
-                    <span className="font-serif italic text-base">יום {day}</span>
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-row-reverse">
+                      <Calendar className="w-4 h-4" />
+                      <span className="font-serif italic text-base">יום {day}</span>
+                    </div>
+                    {userRole === "parent" && (
+                      <button
+                        onClick={() => openAddForm(day, displayChildren[0] || "יובל")}
+                        className="mt-1 w-full px-2 py-1.5 bg-white hover:bg-[#141414] hover:text-white border-2 border-[#141414] text-[10px] font-black shadow-[1.5px_1.5px_0_0_#141414] active:translate-y-0.5 cursor-pointer text-center whitespace-nowrap"
+                      >
+                        + הוספת איסוף
+                      </button>
+                    )}
                   </div>
                 </td>
 
@@ -1056,7 +1073,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                                   {/* שעה מודגשת */}
                                   <span className="inline-flex items-center gap-1 text-sm font-black text-black bg-[#E4E3E0] border border-[#141414] px-2 py-0.5 flex-row-reverse">
                                     <Clock className="w-3.5 h-3.5" />
-                                    <span className="font-mono">{item.time}</span>
+                                    <span className="font-mono">{item.endTime ? `${item.time} - ${item.endTime}` : item.time}</span>
                                   </span>
 
                                   {/* סוג סטטוס */}
@@ -1254,10 +1271,28 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                             );
                           })}
 
+                          {userRole === "parent" && (
+                            <button
+                              onClick={() => openAddForm(day, child)}
+                              className="w-full py-1.5 border-2 border-dashed border-[#141414]/20 hover:border-[#141414] text-[#141414]/70 hover:text-[#141414] font-bold text-[10px] rounded transition-all cursor-pointer text-center mt-2"
+                            >
+                              + הוסף ל-{child}
+                            </button>
+                          )}
                         </div>
                       ) : (
-                        <div className="w-full py-6 border-2 border-dashed border-slate-300 text-center text-slate-500 font-mono text-xs italic bg-[#F2F2EF]">
-                          אין עדכון להסעה
+                        <div className="h-full flex flex-col justify-between min-h-[80px]">
+                          <div className="w-full py-4 border-2 border-dashed border-slate-300 text-center text-slate-500 font-mono text-xs italic bg-[#F2F2EF]">
+                            אין עדכון להסעה
+                          </div>
+                          {userRole === "parent" && (
+                            <button
+                              onClick={() => openAddForm(day, child)}
+                              className="w-full py-1 border-2 border-dashed border-[#141414]/20 hover:border-[#141414] text-[#141414]/70 hover:text-[#141414] font-black text-[10px] bg-slate-50/50 hover:bg-white transition-all cursor-pointer text-center mt-2"
+                            >
+                              + תיאום איסוף ל-{child}
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -1314,7 +1349,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                           <div className="flex justify-between items-center flex-row-reverse">
                             <span className="inline-flex items-center gap-1 text-sm font-black text-black bg-[#E4E3E0] border border-[#141414] px-2 py-0.5 flex-row-reverse font-mono">
                               <Clock className="w-3.5 h-3.5" />
-                              <span>{item.time}</span>
+                              <span>{item.endTime ? `${item.time} - ${item.endTime}` : item.time}</span>
                             </span>
 
                             <span
@@ -1521,7 +1556,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                       <div>
                         <div className="flex justify-between items-center flex-row-reverse pb-1.5 border-b border-slate-100 mb-1.5">
                           <span className="text-xs font-black text-black">יום {pickup.day}</span>
-                          <span className="text-[10px] bg-[#E4E3E0] px-1.5 py-0.5 border border-[#141414] font-bold">{pickup.time}</span>
+                          <span className="text-[10px] bg-[#E4E3E0] px-1.5 py-0.5 border border-[#141414] font-bold">{pickup.endTime ? `${pickup.time} - ${pickup.endTime}` : pickup.time}</span>
                         </div>
                         <p className="text-xs font-bold text-slate-900">ילדים: {pickup.childName}</p>
                         <p className="text-xs text-slate-700">נהג/ת: {otherDriver ? otherDriver.name : "טרם נקבע"}</p>
@@ -1843,12 +1878,35 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-800">שעה</label>
+                    <label className="text-xs font-bold text-slate-800">משעה (איסוף)</label>
                     <input
                       type="time"
                       required
                       value={formTime}
                       onChange={(e) => setFormTime(e.target.value)}
+                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-left font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800 flex justify-between items-center flex-row-reverse">
+                      <span>עד שעה (חזרה - אופציונלי)</span>
+                      {formEndTime && (
+                        <button
+                          type="button"
+                          onClick={() => setFormEndTime("")}
+                          className="text-[10px] text-red-600 hover:underline cursor-pointer"
+                        >
+                          נקה
+                        </button>
+                      )}
+                    </label>
+                    <input
+                      type="time"
+                      value={formEndTime}
+                      onChange={(e) => setFormEndTime(e.target.value)}
                       className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-left font-mono focus:outline-none"
                     />
                   </div>
@@ -1883,6 +1941,45 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800 block font-sans">סוג פעילות / EVENT TYPE</label>
+                  <div className="grid grid-cols-3 gap-2 flex-row-reverse">
+                    <button
+                      type="button"
+                      onClick={() => setFormBabysitterType("none")}
+                      className={`text-xs py-2 px-1 border-2 font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                        formBabysitterType === "none" || !formBabysitterType
+                          ? "bg-[#141414] text-white border-[#141414]"
+                          : "bg-white border-[#141414] text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      🚗 איסוף בלבד
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormBabysitterType("babysitter_only")}
+                      className={`text-xs py-2 px-1 border-2 font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                        formBabysitterType === "babysitter_only"
+                          ? "bg-indigo-950 text-white border-indigo-950"
+                          : "bg-white border-[#141414] text-indigo-950 hover:bg-indigo-50"
+                      }`}
+                    >
+                      🧸 בייביסיטר
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormBabysitterType("both")}
+                      className={`text-xs py-2 px-1 border-2 font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                        formBabysitterType === "both"
+                          ? "bg-amber-600 text-white border-amber-600"
+                          : "bg-white border-[#141414] text-amber-900 hover:bg-amber-50"
+                      }`}
+                    >
+                      🌟 משולב
+                    </button>
                   </div>
                 </div>
 

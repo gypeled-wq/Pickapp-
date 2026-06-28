@@ -19,6 +19,7 @@ export interface Pickup {
   day: string; // 'א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳'
   childName: string; // איתי, נועה, עומר
   time: string; // למשל "13:30"
+  endTime?: string; // למשל "14:30"
   driverId: string; // מפתח חוץ ל-Driver.id
   status: PickupStatus;
   notes: string; // הערות לחוג, מיקום וכו׳
@@ -29,6 +30,7 @@ export interface Pickup {
   isOneTimeDeleted?: boolean; // האם מדובר בביטול חד-פעמי לשבוע הנוכחי בלבד קבוע בלי למחוק פיזית
   originalRecurringValues?: { // ערכי המקור הקבועים לשחזור מהיר
     time: string;
+    endTime?: string;
     driverId: string;
     notes: string;
     status: PickupStatus;

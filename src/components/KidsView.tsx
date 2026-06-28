@@ -225,7 +225,7 @@ export default function KidsView() {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-slate-500 font-bold">בדיוק בשעה שנקבעה:</p>
-                      <p className="text-3xl font-black text-[#141414] font-mono tracking-wider">{todaysPickup.time}</p>
+                      <p className="text-3xl font-black text-[#141414] font-mono tracking-wider">{todaysPickup.endTime ? `${todaysPickup.time} - ${todaysPickup.endTime}` : todaysPickup.time}</p>
                     </div>
                   </div>
                 </div>
@@ -334,7 +334,7 @@ export default function KidsView() {
                     <span className="font-bold text-[#141414] text-xs">יום {day}</span>
                     {dayPickup ? (
                       <span className="text-xs font-mono font-black text-[#141414] bg-[#E4E3E0] border border-[#141414] px-1.5 py-0.5">
-                        {dayPickup.time}
+                        {dayPickup.endTime ? `${dayPickup.time} - ${dayPickup.endTime}` : dayPickup.time}
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-500 italic">אין הסעה</span>
