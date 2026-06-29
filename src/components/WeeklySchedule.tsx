@@ -17,9 +17,28 @@ interface WeeklyScheduleProps {
 export default function WeeklySchedule({ userRole, activeDriverId = null }: WeeklyScheduleProps) {
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [selectedDayTab, setSelectedDayTab] = useState("ראשון"); // For mobile day tabs
+  const currentJsDayIdx = new Date().getDay(); // 0-6 (0 = Sunday, 6 = Saturday)
+  const todayName = DAYS_OF_WEEK[currentJsDayIdx] || "ראשון";
+  const [selectedDayTab, setSelectedDayTab] = useState(todayName); // For mobile day tabs
   const [driverFilter, setDriverFilter] = useState<"only-mine" | "all">("only-mine"); // For driver focus view
   const [isUnassignedExpanded, setIsUnassignedExpanded] = useState(false);
+
+  const orderedDays = useMemo(() => {
+    if (userRole === "driver") {
+      const ordered = [];
+      for (let i = 0; i < 7; i++) {
+        ordered.push(DAYS_OF_WEEK[(currentJsDayIdx + i) % 7]);
+      }
+      return ordered;
+    }
+    return DAYS_OF_WEEK;
+  }, [userRole, currentJsDayIdx]);
+
+  const isDayInPast = (day: string) => {
+    if (userRole !== "driver") return false;
+    const targetIdx = DAYS_OF_WEEK.indexOf(day);
+    return targetIdx < currentJsDayIdx;
+  };
 
   // אישור פנימי לביטול/מחיקה ואיפוס שבוע ללא window.confirm (בשל חסימת iframe)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -866,21 +885,25 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
         {/* טאבים על ימים במובייל / סינונים */}
         <div className="md:hidden grid grid-cols-7 gap-1 bg-[#D1D0CC] p-1.5 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
-          {DAYS_OF_WEEK.map((day) => {
+          {orderedDays.map((day) => {
             const isSelected = selectedDayTab === day;
             const shortName = day === "ראשון" ? "א'" : day === "שני" ? "ב'" : day === "שלישי" ? "ג'" : day === "רביעי" ? "ד'" : day === "חמישי" ? "ה'" : day === "שישי" ? "ו'" : "שב'";
+            const isNextWeek = isDayInPast(day);
             return (
               <button
                 key={day}
                 onClick={() => setSelectedDayTab(day)}
-                className={`py-5 px-1 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
+                className={`py-4 px-0.5 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
                   isSelected
                     ? "bg-[#141414] text-white"
                     : "bg-white text-[#141414] hover:bg-slate-50"
                 }`}
               >
-                <span className="text-base font-black leading-none">{shortName}</span>
-                <span className="text-[11px] font-black leading-none mt-1.5 block">{day}</span>
+                <span className="text-sm sm:text-base font-black leading-none">{shortName}</span>
+                <span className="text-[9px] sm:text-[11px] font-black leading-none mt-1 block">
+                  {day}
+                  {isNextWeek && <span className="block text-[8px] text-red-500 font-bold scale-90">(הבא)</span>}
+                </span>
               </button>
             );
           })}
@@ -963,7 +986,7 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             </tr>
           </thead>
           <tbody className="divide-y-2 divide-[#141414]">
-            {DAYS_OF_WEEK.map((day) => {
+            {orderedDays.map((day) => {
               // Get all pickups for this day
               let items = pickups.filter((p) => p.day === day && !p.isOneTimeDeleted);
               
@@ -975,6 +998,11 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                 items = items.filter(item => item.driverId === activeDriverId);
               }
 
+              const isNextWeek = isDayInPast(day);
+              if (isNextWeek) {
+                items = items.filter(p => p.isRecurring !== false);
+              }
+
               return (
                 <tr key={day} className="hover:bg-[#F2F2EF] transition-colors">
                   {/* עמודת היום */}
@@ -984,6 +1012,11 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
                         <Calendar className="w-4 h-4" />
                         <span className="font-serif italic text-base">יום {day}</span>
                       </div>
+                      {isNextWeek && (
+                        <span className="text-[10px] bg-red-100 text-red-800 border border-red-400 px-1.5 py-0.5 font-bold font-mono">
+                          שבוע הבא
+                        </span>
+                      )}
                       {userRole === "parent" && (
                         <button
                           onClick={() => openAddForm(day, "יובל")}
@@ -1257,38 +1290,51 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
 
       {/* תצוגת מובייל יומית (Mobile View only selected Day Tab) */}
       <div className="md:hidden space-y-4 font-mono" id="mobile_day_layout">
-        <div className="flex flex-col gap-2.5">
-          <h3 className="text-sm font-black text-[#141414] text-right uppercase border-r-4 border-[#141414] pr-2">הסעות ליום {selectedDayTab} / DAILY LOG:</h3>
-          
-          {/* כפתור הוספה מרכזי להורים לתיאום קל ממקום אחד (יבקש יום, ילד, שעה וכו') */}
-          {userRole === "parent" && (
-            <button
-              onClick={() => openAddForm(selectedDayTab, "יובל")}
-              className="w-full py-3 bg-[#EEF2FF] hover:bg-white text-indigo-950 hover:text-black font-black text-xs border-2 border-dashed border-[#141414] shadow-[3px_3px_0_0_#141414] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 flex-row-reverse cursor-pointer font-sans"
-              id="parent_mobile_add_pickup_central_btn"
-            >
-              <Plus className="w-4 h-4 text-indigo-900" />
-              <span>➕ תיאום נסיעה חדשה (בחירת יום, שעה וילד בטופס)</span>
-            </button>
-          )}
-        </div>
+        {(() => {
+          const selectedDayIsNextWeek = isDayInPast(selectedDayTab);
+          return (
+            <>
+              <div className="flex flex-col gap-2.5">
+                <h3 className="text-sm font-black text-[#141414] text-right uppercase border-r-4 border-[#141414] pr-2">
+                  הסעות ליום {selectedDayTab} {selectedDayIsNextWeek ? "(שבוע הבא)" : ""} / DAILY LOG:
+                </h3>
+                
+                {/* כפתור הוספה מרכזי להורים לתיאום קל ממקום אחד (יבקש יום, ילד, שעה וכו') */}
+                {userRole === "parent" && (
+                  <button
+                    onClick={() => openAddForm(selectedDayTab, "יובל")}
+                    className="w-full py-3 bg-[#EEF2FF] hover:bg-white text-indigo-950 hover:text-black font-black text-xs border-2 border-dashed border-[#141414] shadow-[3px_3px_0_0_#141414] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 flex-row-reverse cursor-pointer font-sans"
+                    id="parent_mobile_add_pickup_central_btn"
+                  >
+                    <Plus className="w-4 h-4 text-indigo-900" />
+                    <span>➕ תיאום נסיעה חדשה (בחירת יום, שעה וילד בטופס)</span>
+                  </button>
+                )}
+              </div>
 
-        <div className="grid grid-cols-1 gap-4">
-          {(() => {
-            let items = pickups.filter((p) => p.day === selectedDayTab && !p.isOneTimeDeleted);
-            items.sort((a, b) => a.time.localeCompare(b.time));
+              <div className="grid grid-cols-1 gap-4">
+                {(() => {
+                  let items = pickups.filter((p) => p.day === selectedDayTab && !p.isOneTimeDeleted);
+                  items.sort((a, b) => a.time.localeCompare(b.time));
 
-            // סינון במובייל לנהג הפעיל
-            if (userRole === "driver" && activeDriverId && driverFilter === "only-mine") {
-              items = items.filter(item => item.driverId === activeDriverId);
-            }
+                  // סינון במובייל לנהג הפעיל
+                  if (userRole === "driver" && activeDriverId && driverFilter === "only-mine") {
+                    items = items.filter(item => item.driverId === activeDriverId);
+                  }
 
-            if (items.length > 0) {
-              return (
-                <div className="bg-white border-2 border-[#141414] p-4 text-right shadow-[2px_2px_0_0_#141414]">
-                  <div className="border-b-2 border-[#141414] pb-2 mb-3 flex justify-between items-center flex-row-reverse">
-                    <span className="font-black text-[#141414] text-sm uppercase">הסעות ליום {selectedDayTab} / RIDES FOR {selectedDayTab}</span>
-                  </div>
+                  const isNextWeek = isDayInPast(selectedDayTab);
+                  if (isNextWeek) {
+                    items = items.filter(p => p.isRecurring !== false);
+                  }
+
+                  if (items.length > 0) {
+                    return (
+                      <div className="bg-white border-2 border-[#141414] p-4 text-right shadow-[2px_2px_0_0_#141414]">
+                        <div className="border-b-2 border-[#141414] pb-2 mb-3 flex justify-between items-center flex-row-reverse">
+                          <span className="font-black text-[#141414] text-sm uppercase">
+                            הסעות ליום {selectedDayTab} {selectedDayIsNextWeek ? "(שבוע הבא)" : ""} / RIDES FOR {selectedDayTab}
+                          </span>
+                        </div>
 
                   <div className="space-y-4">
                     {items.map((item, idx) => {
@@ -1485,6 +1531,9 @@ export default function WeeklySchedule({ userRole, activeDriverId = null }: Week
             }
           })()}
         </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* רשימת שאר נסיעות המשפחה השבוע - להשפעת תיאום גמיש (מופיע רק במצב נהג פעיל שחוסך מקום) */}
