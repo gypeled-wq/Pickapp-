@@ -840,10 +840,34 @@ export const StorageEngine = {
     }
   },
 
-  togglePickupCompletion(id: string) {
+  togglePickupCompletion(id: string, weekOffset: number = 0) {
     const index = currentPickups.findIndex((p) => p.id === id);
     if (index !== -1) {
-      const p = { ...currentPickups[index], completed: !currentPickups[index].completed };
+      const orig = currentPickups[index];
+      let p: Pickup;
+      
+      if (orig.isRecurring) {
+        const completedWeeks = orig.completedWeeks || {};
+        const previousState = completedWeeks[weekOffset] ?? (weekOffset === 0 ? orig.completed : false);
+        const newState = !previousState;
+        
+        p = {
+          ...orig,
+          completedWeeks: {
+            ...completedWeeks,
+            [weekOffset]: newState,
+          },
+        };
+        if (weekOffset === 0) {
+          p.completed = newState;
+        }
+      } else {
+        p = {
+          ...orig,
+          completed: !orig.completed,
+        };
+      }
+      
       currentPickups[index] = p;
       saveData(KEYS.PICKUPS, currentPickups);
       notifyAll();
@@ -852,13 +876,19 @@ export const StorageEngine = {
         console.error("Error toggling pickup completion in Firestore:", err);
       });
 
-      const actionText = p.completed ? "הושלם בהצלחה" : "חזר לפעיל";
-      this.addLog("עדכון סטטוס ביצוע", `האיסוף של ${p.childName} ביום ${p.day} סומן כ${actionText}`, p.completed ? "child" : "parent", p.childName);
+      const isCompleted = orig.isRecurring 
+        ? (p.completedWeeks?.[weekOffset] ?? false)
+        : p.completed;
+
+      const actionText = isCompleted ? "הושלם בהצלחה" : "חזר לפעיל";
+      const weekLabel = weekOffset === 0 ? "" : ` (שבוע ${weekOffset > 0 ? "+" : ""}${weekOffset})`;
+      
+      this.addLog("עדכון סטטוס ביצוע", `האיסוף של ${p.childName} ביום ${p.day}${weekLabel} סומן כ${actionText}`, isCompleted ? "child" : "parent", p.childName);
       
       this.addAlert(
         "עדכון סטטוס איסוף",
-        `האיסוף של ${p.childName} ביום ${p.day} שונה לסטטוס: ${actionText}`,
-        p.completed ? "success" : "info"
+        `האיסוף של ${p.childName} ביום ${p.day}${weekLabel} שונה לסטטוס: ${actionText}`,
+        isCompleted ? "success" : "info"
       );
     }
   },

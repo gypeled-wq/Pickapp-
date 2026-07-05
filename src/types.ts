@@ -36,6 +36,22 @@ export interface Pickup {
     status: PickupStatus;
     babysitterType?: "none" | "babysitter_only" | "both";
   };
+  // תמיכה בלוח רב-שבועי (עד 4 שבועות קדימה ואחורה)
+  weekOffset?: number; // מזהה השבוע עבור נסיעות חד-פעמיות (-4 עד 4)
+  completedWeeks?: { [weekOffset: number]: boolean }; // תיעוד השלמות שבועיות
+  deletedWeeks?: { [weekOffset: number]: boolean }; // תיעוד ביטולים שבועיים
+  overridesWeeks?: { // תיעוד שינויים שבועיים
+    [weekOffset: number]: {
+      time?: string;
+      endTime?: string;
+      driverId?: string;
+      notes?: string;
+      status?: PickupStatus;
+      babysitterType?: "none" | "babysitter_only" | "both";
+      changedAt?: string; // מתי בוצע השינוי
+      changedBy?: string; // מי ביצע (למשל "הורים", "מערכת")
+    }
+  };
 }
 
 export interface ActivityLog {
