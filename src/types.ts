@@ -76,6 +76,21 @@ export const DAYS_OF_WEEK = ["ראשון", "שני", "שלישי", "רביעי",
 
 export const DEFAULT_CHILDREN = ["יובל", "אלון", "בר"];
 
+export interface ChatMessage {
+  id: string;
+  senderId: string;       // "parent" or the driver's ID
+  senderName: string;     // name displayed
+  receiverId: string;     // "parent" or the driver's ID
+  receiverName: string;   // name displayed
+  text: string;
+  timestamp: string;      // ISO string
+  read: boolean;          // read receipt
+  reported?: boolean;     // flagged for review
+  reportedReason?: string; // why it was flagged
+  reportedBy?: string;    // "parent" or driver ID
+  moderated?: boolean;    // has been reviewed / filtered
+}
+
 export function isPickupLessThan12HoursAway(day: string, timeStr: string, driverId?: string): boolean {
   const isUnassigned = !driverId || driverId === "unassigned" || driverId === "none";
   if (!isUnassigned) return false;

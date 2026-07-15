@@ -62,6 +62,22 @@
         "isOneTimeOverride": "boolean",
         "originalRecurringValues": "object"
       }
+    },
+    "messages": {
+      "schema": {
+        "id": "string",
+        "senderId": "string",
+        "senderName": "string",
+        "receiverId": "string",
+        "receiverName": "string",
+        "text": "string",
+        "timestamp": "string",
+        "read": "boolean",
+        "reported": "boolean",
+        "reportedReason": "string",
+        "reportedBy": "string",
+        "moderated": "boolean"
+      }
     }
   }
 }

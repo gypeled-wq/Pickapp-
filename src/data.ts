@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Driver, Pickup, ActivityLog, AlertNotification } from "./types";
+import { Driver, Pickup, ActivityLog, AlertNotification, ChatMessage } from "./types";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -302,6 +302,7 @@ const KEYS = {
   LOGS: "kid_sync_logs_v1",
   ALERTS: "kid_sync_alerts_v1",
   MASTER_PICKUPS: "kid_sync_master_pickups_v1",
+  MESSAGES: "kid_sync_messages_v1",
 };
 
 // קורא נתונים או מאתחל בערכי ברירת מחדל
@@ -358,6 +359,7 @@ let currentPickups: Pickup[] = loadData(KEYS.PICKUPS, INITIAL_PICKUPS);
 let currentLogs: ActivityLog[] = loadData(KEYS.LOGS, INITIAL_LOGS);
 let currentAlerts: AlertNotification[] = loadData(KEYS.ALERTS, INITIAL_ALERTS);
 let currentMasterPickups: Pickup[] = loadData(KEYS.MASTER_PICKUPS, INITIAL_PICKUPS);
+let currentMessages: ChatMessage[] = loadData(KEYS.MESSAGES, []);
 
 enum OperationType {
   CREATE = 'create',
@@ -433,6 +435,7 @@ async function startFirebaseSync() {
   await syncOrSeedCollection("logs", currentLogs, INITIAL_LOGS);
   await syncOrSeedCollection("alerts", currentAlerts, INITIAL_ALERTS);
   await syncOrSeedCollection("master_pickups", currentMasterPickups, INITIAL_PICKUPS);
+  await syncOrSeedCollection("messages", currentMessages, []);
 
   // האזנות בזמן אמת לעדכונים מכל מכשיר/דפדפן
   onSnapshot(collection(db, "drivers"), (snapshot) => {
@@ -495,6 +498,19 @@ async function startFirebaseSync() {
     notifyAll();
   }, (err) => {
     handleFirestoreError(err, OperationType.GET, "master_pickups");
+  });
+
+  onSnapshot(collection(db, "messages"), (snapshot) => {
+    const list: ChatMessage[] = [];
+    snapshot.forEach((doc) => {
+      list.push(doc.data() as ChatMessage);
+    });
+    list.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    currentMessages = list;
+    saveData(KEYS.MESSAGES, list);
+    notifyAll();
+  }, (err) => {
+    handleFirestoreError(err, OperationType.GET, "messages");
   });
 }
 
@@ -892,4 +908,108 @@ export const StorageEngine = {
       );
     }
   },
+
+  getMessages(): ChatMessage[] {
+    return currentMessages;
+  },
+
+  sendMessage(text: string, senderId: string, senderName: string, receiverId: string, receiverName: string) {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+
+    let isReported = false;
+    let reportedReason = "";
+    let moderatedText = cleanText;
+
+    // Safety & Moderation keywords
+    const forbiddenWords = ["ספאם", "קללה", "זבל", "חרא", "shit", "spam"];
+    const foundForbidden = forbiddenWords.some(word => cleanText.toLowerCase().includes(word));
+    if (foundForbidden) {
+      isReported = true;
+      reportedReason = "שימוש במילים לא נאותות";
+      moderatedText = "⚠️ [הודעה זו סוננה בשל חריגה מכללי השיח המכבד]";
+    }
+
+    const newMessage: ChatMessage = {
+      id: "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      senderId,
+      senderName,
+      receiverId,
+      receiverName,
+      text: moderatedText,
+      timestamp: new Date().toISOString(),
+      read: false,
+      reported: isReported,
+      reportedReason,
+      moderated: isReported,
+    };
+
+    currentMessages = [...currentMessages, newMessage];
+    saveData(KEYS.MESSAGES, currentMessages);
+    notifyAll();
+
+    setDoc(doc(db, "messages", newMessage.id), cleanForFirestore(newMessage)).catch((err) => {
+      console.error("Error sending message:", err);
+    });
+
+    // Notify receiver
+    this.addAlert(
+      `צ׳אט: הודעה חדשה מ-${senderName}`,
+      `הודעה חדשה: "${moderatedText.substring(0, 40)}${moderatedText.length > 40 ? "..." : ""}"`,
+      isReported ? "urgent" : "info"
+    );
+
+    this.addLog(
+      "שליחת הודעה בצ׳אט",
+      `נשלחה הודעה בצ׳אט מ-${senderName} אל ${receiverName}`,
+      senderId === "parent" ? "parent" : "system"
+    );
+  },
+
+  markMessageAsRead(messageId: string) {
+    const index = currentMessages.findIndex(m => m.id === messageId);
+    if (index !== -1 && !currentMessages[index].read) {
+      const updated = { ...currentMessages[index], read: true };
+      currentMessages[index] = updated;
+      saveData(KEYS.MESSAGES, currentMessages);
+      notifyAll();
+
+      setDoc(doc(db, "messages", messageId), cleanForFirestore(updated)).catch((err) => {
+        console.error("Error marking message as read:", err);
+      });
+    }
+  },
+
+  reportMessage(messageId: string, reason: string, reportedBy: string) {
+    const index = currentMessages.findIndex(m => m.id === messageId);
+    if (index !== -1) {
+      const updated = {
+        ...currentMessages[index],
+        reported: true,
+        reportedReason: reason,
+        reportedBy,
+        text: "⚠️ [הודעה זו דווחה על ידי המשתמש ונמצאת בבדיקת מנהל]",
+        moderated: true
+      };
+      currentMessages[index] = updated;
+      saveData(KEYS.MESSAGES, currentMessages);
+      notifyAll();
+
+      setDoc(doc(db, "messages", messageId), cleanForFirestore(updated)).catch((err) => {
+        console.error("Error reporting message:", err);
+      });
+
+      this.addAlert(
+        "דיווח בטיחות: הודעה דווחה",
+        `משתמש דיווח על הודעה מ-${updated.senderName} מסיבה: ${reason}`,
+        "urgent"
+      );
+
+      this.addLog(
+        "דיווח בטיחות בצ׳אט",
+        `הודעה של ${updated.senderName} דווחה על ידי ${reportedBy === "parent" ? "הורים" : "נהגים"}. סיבה: ${reason}`,
+        "system"
+      );
+    }
+  }
 };

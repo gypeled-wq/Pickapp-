@@ -9,6 +9,7 @@ import DriverLibrary from "./components/DriverLibrary";
 import KidsView from "./components/KidsView";
 import HistoryLog from "./components/HistoryLog";
 import NotificationCenter from "./components/NotificationCenter";
+import ChatSystem from "./components/ChatSystem";
 import { StorageEngine, subscribeToStore } from "./data";
 import { Users, Shield, CalendarCheck, Clock, Sparkles, Car, Lock, Key, AlertTriangle, HelpCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -352,6 +353,9 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* שיחות והודעות (צא׳ט הורים-נהגים) */}
+              <ChatSystem userRole={userRole} activeDriverId={activeDriverId} />
             </motion.div>
           )}
 
@@ -398,6 +402,15 @@ export default function App() {
               <div className="bg-white border-4 border-[#141414] tech-shadow p-2 px-2 pb-4 pt-3 xs:p-4 sm:p-6">
                 <WeeklySchedule userRole="driver" activeDriverId={activeDriverId} />
               </div>
+
+              {/* צא׳ט שיחות והודעות ישיר עם ההורים */}
+              {activeDriverId ? (
+                <ChatSystem userRole={userRole} activeDriverId={activeDriverId} />
+              ) : (
+                <div className="bg-white border-4 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6 text-center text-xs font-bold text-slate-500">
+                  ⚠️ אנא בחרו נהג להזדהות על מנת לפתוח את ממשק השיחות וההודעות מול ההורים.
+                </div>
+              )}
             </motion.div>
           )}
 

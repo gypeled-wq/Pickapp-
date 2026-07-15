@@ -16,5 +16,8 @@ service cloud.firestore {
     match /master_pickups/{document} {
       allow read, write: if true;
     }
+    match /messages/{document} {
+      allow read, write: if true;
+    }
   }
 }
