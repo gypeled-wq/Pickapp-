@@ -107,6 +107,68 @@ export const MedicationTracker: React.FC<MedicationTrackerProps> = ({
                   </button>
                 </div>
 
+                {/* 30-Day Supply Tracker & Alert Banner */}
+                {(() => {
+                  const total = med.totalQuantity ?? 30;
+                  const perDay = med.pillsPerDay ?? 1;
+                  const remaining = med.remainingQuantity ?? 30;
+                  const daysLeft = Math.floor(remaining / Math.max(1, perDay));
+                  const percentLeft = Math.round((remaining / total) * 100);
+                  const isLow = daysLeft <= 7;
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                          <span className="flex items-center gap-1 text-slate-800">
+                            <Pill className="w-3.5 h-3.5 text-rose-500" />
+                            מלאי תרופה (ספירת 30 ימים)
+                          </span>
+                          <span className={isLow ? "text-rose-600 font-black" : "text-emerald-700 font-extrabold"}>
+                            נותרו {remaining} / {total} מנות ({daysLeft} ימים)
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${
+                              isLow ? "bg-rose-500" : "bg-emerald-500"
+                            }`}
+                            style={{ width: `${Math.min(100, percentLeft)}%` }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium pt-0.5">
+                          <span>תאריך חידוש אחרון: {med.lastRefillDate || "ללא רישום"}</span>
+                          <button
+                            onClick={() => StorageEngine.refillMedication(med.id, 30)}
+                            className="text-indigo-600 hover:text-indigo-800 font-extrabold flex items-center gap-1"
+                          >
+                            <span>🔄 חידוש מלאי / מרשם (+30 יום)</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Low Supply / Prescription Renewal Alert */}
+                      {isLow && (
+                        <div className="bg-rose-50 border border-rose-200 p-3 rounded-2xl flex items-center justify-between text-xs text-rose-900 font-bold gap-2">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 animate-bounce" />
+                            <span>⚠️ התראה: נדרש חידוש מרשם ואיסוף תרופות חדש בתוך {daysLeft} ימים!</span>
+                          </div>
+                          <button
+                            onClick={() => StorageEngine.refillMedication(med.id, 30)}
+                            className="px-2.5 py-1 bg-rose-600 text-white rounded-xl text-[11px] font-extrabold shadow-2xs shrink-0"
+                          >
+                            חידוש מרשם
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Schedule & Instructions */}
                 <div className="bg-slate-50 rounded-2xl p-3 text-xs text-slate-600 flex flex-col gap-1.5">
                   <div className="flex items-center gap-1.5 font-semibold text-slate-700">

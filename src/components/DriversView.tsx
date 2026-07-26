@@ -9,6 +9,8 @@ interface DriversViewProps {
   childrenList: Child[];
   parents: ParentProfile[];
   activeParentId: string;
+  onLockDriverMode?: (driverId: string) => void;
+  isLockedInDriverMode?: boolean;
 }
 
 export const DriversView: React.FC<DriversViewProps> = ({
@@ -17,6 +19,8 @@ export const DriversView: React.FC<DriversViewProps> = ({
   childrenList,
   parents,
   activeParentId,
+  onLockDriverMode,
+  isLockedInDriverMode,
 }) => {
   const [selectedDriverId, setSelectedDriverId] = useState<string | "all" | "unassigned">("all");
   const [isAddPickupOpen, setIsAddPickupOpen] = useState(false);
@@ -119,7 +123,7 @@ export const DriversView: React.FC<DriversViewProps> = ({
             ריכוז משימות איסוף והורדה לנהגים, סבים/סבתות, ובייביסיטרים - ללא גישה לפרטי ההורים.
           </p>
 
-          <div className="flex items-center gap-2 mt-4">
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
             <button
               onClick={() => setIsAddPickupOpen(true)}
               className="flex items-center gap-1.5 bg-white text-orange-600 px-3.5 py-2 rounded-2xl text-xs font-bold shadow-xs hover:bg-orange-50 transition-all active:scale-95"
@@ -127,13 +131,30 @@ export const DriversView: React.FC<DriversViewProps> = ({
               <Plus className="w-4 h-4" />
               איסוף חדש לנהג
             </button>
+
             <button
               onClick={() => setIsAddDriverOpen(true)}
-              className="flex items-center gap-1.5 bg-orange-700/60 text-white px-3.5 py-2 rounded-2xl text-xs font-semibold border border-white/20 hover:bg-orange-700/80 transition-all active:scale-95"
+              className="flex items-center gap-1.5 bg-orange-700/60 hover:bg-orange-700 text-white px-3.5 py-2 rounded-2xl text-xs font-bold border border-white/20 transition-all"
             >
               <UserCheck className="w-4 h-4" />
-              הוספת נהג מורשה
+              הוסף נהג חדש
             </button>
+
+            {onLockDriverMode && (
+              <button
+                onClick={() => {
+                  const targetId = selectedDriverId === "all" || selectedDriverId === "unassigned" ? (drivers[0]?.id || "driver1") : selectedDriverId;
+                  onLockDriverMode(targetId);
+                }}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all shadow-xs ${
+                  isLockedInDriverMode
+                    ? "bg-amber-300 text-slate-900 font-extrabold"
+                    : "bg-black/20 hover:bg-black/30 text-white border border-white/20"
+                }`}
+              >
+                <span>🔒 נעול תצוגת נהג</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -64,6 +64,11 @@ export interface Medication {
   lastAdministered?: string; // ISO timestamp
   lastAdministeredBy?: string; // parent ID
   handoffConfirmed?: boolean;
+  totalQuantity?: number; // e.g. 30 pills
+  pillsPerDay?: number; // e.g. 1 pill per day
+  remainingQuantity?: number; // e.g. 12 pills remaining
+  lastRefillDate?: string; // YYYY-MM-DD
+  refillAlertDays?: number; // threshold e.g. 7 days
 }
 
 export interface Expense {

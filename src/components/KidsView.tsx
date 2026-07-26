@@ -29,6 +29,8 @@ export const KidsView: React.FC<KidsViewProps> = ({
   const [selectedChildId, setSelectedChildId] = useState<string>(childrenList[0]?.id || "child1");
   const [stars, setStars] = useState<number>(3);
   const [starredToday, setStarredToday] = useState(false);
+  const [reminderAlertMinutes, setReminderAlertMinutes] = useState<number>(30);
+  const [reminderActive, setReminderActive] = useState<boolean>(true);
 
   const selectedChild = childrenList.find((c) => c.id === selectedChildId) || childrenList[0];
   const todayStr = new Date().toISOString().split("T")[0];
@@ -49,7 +51,7 @@ export const KidsView: React.FC<KidsViewProps> = ({
 
   let pickupPersonName = todayParent?.name || "אמא / אבא";
   let pickupPersonAvatar = todayParent?.avatarUrl || "👤";
-  let pickupTime = "סוף יום הלימודים (16:00)";
+  let pickupTimeStr = "16:00";
   let pickupLocation = "שער המסגרת";
 
   if (todayDriverTask) {
@@ -57,7 +59,7 @@ export const KidsView: React.FC<KidsViewProps> = ({
     if (driver) {
       pickupPersonName = `${driver.name} (${driver.relation})`;
       pickupPersonAvatar = driver.avatar;
-      pickupTime = todayDriverTask.time;
+      pickupTimeStr = todayDriverTask.time;
       pickupLocation = todayDriverTask.location;
     }
   } else {
@@ -70,11 +72,40 @@ export const KidsView: React.FC<KidsViewProps> = ({
       if (respParent) {
         pickupPersonName = respParent.name;
         pickupPersonAvatar = respParent.avatarUrl;
-        pickupTime = parentTask.time;
+        pickupTimeStr = parentTask.time;
         pickupLocation = parentTask.location || pickupLocation;
       }
     }
   }
+
+  // Countdown math to pickup time
+  const calculateTimeRemaining = (timeStr: string) => {
+    const now = new Date();
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return "בסוף יום הלימודים";
+
+    const targetTime = new Date();
+    targetTime.setHours(hours, minutes, 0, 0);
+
+    const diffMs = targetTime.getTime() - now.getTime();
+    if (diffMs <= 0) return "זמן האיסוף הגיע!";
+
+    const totalMinutes = Math.floor(diffMs / (1000 * 60));
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+
+    if (h > 0) {
+      return `בעוד ${h} שעות ו-${m} דקות`;
+    }
+    return `בעוד ${m} דקות`;
+  };
+
+  const timeUntilPickup = calculateTimeRemaining(pickupTimeStr);
+
+  // Activities for this child today
+  const childTodayActivities = tasks.filter(
+    (t) => t.date === todayStr && (t.childId === selectedChildId || t.childId === "all")
+  );
 
   // Gear / Packing for this child
   const childPacking = packingItems.filter(
@@ -170,8 +201,8 @@ export const KidsView: React.FC<KidsViewProps> = ({
         </div>
 
         {/* Card 2: Who is picking me up today? */}
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-5 border border-amber-100 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-5 border border-amber-100 shadow-xs relative overflow-hidden space-y-3">
+          <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full flex items-center gap-1.5">
               <Sun className="w-3.5 h-3.5 text-amber-600" />
               מי אוסף אותי היום?
@@ -179,27 +210,100 @@ export const KidsView: React.FC<KidsViewProps> = ({
             <span className="text-2xl">🚗</span>
           </div>
 
-          <div className="flex items-center gap-4 bg-white/80 p-3.5 rounded-2xl border border-amber-100/60 shadow-2xs">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-3xl shadow-sm shrink-0">
+          <div className="flex items-center gap-4 bg-white/90 p-3.5 rounded-2xl border border-amber-100/60 shadow-2xs">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center text-3xl shadow-sm shrink-0">
               {pickupPersonAvatar}
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-slate-500">נאסף בסוף היום על ידי:</p>
-              <h3 className="text-base font-black text-amber-950 mt-0.5">{pickupPersonName}</h3>
-              <div className="flex items-center gap-2 mt-1 text-[11px] text-amber-800 font-bold">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-600" />
-                  {pickupTime}
+              <h3 className="text-base font-black text-amber-950 mt-0.5 truncate">{pickupPersonName}</h3>
+              <div className="flex items-center gap-2 mt-1 text-[11px] text-amber-900 font-bold flex-wrap">
+                <span className="flex items-center gap-1 bg-amber-100 px-2 py-0.5 rounded-lg text-amber-900">
+                  <Clock className="w-3 h-3 text-amber-700" />
+                  בשעה {pickupTimeStr}
                 </span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-amber-600" />
+                <span className="flex items-center gap-1 bg-amber-100 px-2 py-0.5 rounded-lg text-amber-900">
+                  <MapPin className="w-3 h-3 text-amber-700" />
                   {pickupLocation}
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Countdown & Reminder Alert Box */}
+          <div className="bg-amber-100/80 p-3 rounded-2xl border border-amber-200/80 flex flex-col gap-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-amber-950 flex items-center gap-1">
+                <Clock className="w-4 h-4 text-orange-600 animate-spin" />
+                זמן עד האיסוף: <span className="text-orange-700 font-black">{timeUntilPickup}</span>
+              </span>
+              <span className="text-[10px] font-bold bg-orange-600 text-white px-2 py-0.5 rounded-full">
+                התראה מוגדרת ✨
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
+              <span className="text-[11px] font-bold text-amber-900">התראה לפני:</span>
+              <div className="flex items-center gap-1">
+                {[15, 30, 60].map((mins) => (
+                  <button
+                    key={mins}
+                    onClick={() => setReminderAlertMinutes(mins)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all ${
+                      reminderAlertMinutes === mins
+                        ? "bg-orange-600 text-white shadow-2xs"
+                        : "bg-white text-amber-900 border border-amber-200 hover:bg-amber-50"
+                    }`}
+                  >
+                    {mins} דקות
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Card: Child's Activities Schedule Today */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-indigo-600" />
+            פעילויות וחוגים להיום ({selectedChild?.name})
+          </h3>
+          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+            {childTodayActivities.length} פעילויות
+          </span>
+        </div>
+
+        {childTodayActivities.length === 0 ? (
+          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center">
+            <p className="text-xs font-bold text-slate-600">אין חוגים מיוחדים היום – יום חופשי! 🎉</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {childTodayActivities.map((act) => (
+              <div
+                key={act.id}
+                className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-xs"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-indigo-600 text-white font-bold">
+                    {act.time}
+                  </span>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900">{act.title}</h4>
+                    <p className="text-[11px] text-slate-500 font-medium">{act.location || "מסגרת קבועה"}</p>
+                  </div>
+                </div>
+
+                <span className="px-2.5 py-1 bg-white rounded-xl text-[11px] font-bold text-indigo-700 shadow-2xs border border-indigo-100">
+                  {act.type === "pickup" ? "איסוף" : act.type === "dropoff" ? "הורדה" : "חוג"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Card 3: What to pack / Gear checklist for today */}

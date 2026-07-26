@@ -116,20 +116,41 @@ export default function App() {
     setIsLocked(true);
   };
 
+  const handleLockDriverMode = (driverId: string) => {
+    setActiveTab("drivers");
+    setIsLocked(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col selection:bg-indigo-500 selection:text-white" dir="rtl">
-      {/* Top Header */}
-      <Header
-        parents={parents}
-        activeParentId={activeParentId}
-        onSelectParent={(id) => setActiveParentId(id)}
-        childrenList={childrenList}
-        selectedChildId={selectedChildId}
-        onSelectChild={(id) => setSelectedChildId(id)}
-        onOpenAiModal={() => setIsAiModalOpen(true)}
-        onToggleLock={handleToggleLock}
-        isLocked={isLocked}
-      />
+      {/* Top Header (or Locked Banner) */}
+      {!isLocked ? (
+        <Header
+          parents={parents}
+          activeParentId={activeParentId}
+          onSelectParent={(id) => setActiveParentId(id)}
+          childrenList={childrenList}
+          selectedChildId={selectedChildId}
+          onSelectChild={(id) => setSelectedChildId(id)}
+          onOpenAiModal={() => setIsAiModalOpen(true)}
+          onToggleLock={handleToggleLock}
+          isLocked={isLocked}
+        />
+      ) : (
+        <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between sticky top-0 z-50 border-b border-slate-800 shadow-md">
+          <div className="flex items-center gap-2 text-xs font-black">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>מצב נעול מוגן: {activeTab === "kids" ? "מסך ילדים 🎈" : "מסך נהגים 🚘"}</span>
+          </div>
+          <button
+            onClick={handleToggleLock}
+            className="flex items-center gap-1 px-3 py-1 bg-amber-400 text-slate-950 rounded-xl text-xs font-black shadow-xs hover:bg-amber-300 transition-all active:scale-95"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>🔓 יציאה בקוד אדמין</span>
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-lg mx-auto w-full px-4 pt-4">
@@ -152,6 +173,8 @@ export default function App() {
             childrenList={childrenList}
             parents={parents}
             activeParentId={activeParentId}
+            onLockDriverMode={handleLockDriverMode}
+            isLockedInDriverMode={isLocked}
           />
         )}
 
@@ -246,132 +269,144 @@ export default function App() {
       />
 
       {/* Mobile-first Floating Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/80 z-40 px-1 py-1.5 shadow-lg">
-        <div className="max-w-lg mx-auto flex items-center justify-between px-1">
-          {/* Schedule */}
-          <button
-            onClick={() => handleTabClick("schedule")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
-              activeTab === "schedule"
-                ? "text-indigo-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <Calendar className="w-5 h-5" />
-            <span className="text-[10px]">לו"ז</span>
-          </button>
+      {!isLocked ? (
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/80 z-40 px-1 py-1.5 shadow-lg">
+          <div className="max-w-lg mx-auto flex items-center justify-between px-1">
+            {/* Schedule */}
+            <button
+              onClick={() => handleTabClick("schedule")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
+                activeTab === "schedule"
+                  ? "text-indigo-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="text-[10px]">לו"ז</span>
+            </button>
 
-          {/* Drivers */}
-          <button
-            onClick={() => handleTabClick("drivers")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
-              activeTab === "drivers"
-                ? "text-orange-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <Car className="w-5 h-5" />
-            <span className="text-[10px]">נהגים</span>
-            {driverTasks.filter((t) => !t.completed).length > 0 && (
-              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-orange-500" />
-            )}
-          </button>
+            {/* Drivers */}
+            <button
+              onClick={() => handleTabClick("drivers")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
+                activeTab === "drivers"
+                  ? "text-orange-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <Car className="w-5 h-5" />
+              <span className="text-[10px]">נהגים</span>
+              {driverTasks.filter((t) => !t.completed).length > 0 && (
+                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-orange-500" />
+              )}
+            </button>
 
-          {/* Kids Mode */}
-          <button
-            onClick={() => handleTabClick("kids")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
-              activeTab === "kids"
-                ? "text-purple-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <Sparkles className="w-5 h-5 text-purple-600" />
-            <span className="text-[10px] font-bold text-purple-700">ילדים 🎈</span>
-          </button>
+            {/* Kids Mode */}
+            <button
+              onClick={() => handleTabClick("kids")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
+                activeTab === "kids"
+                  ? "text-purple-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <span className="text-[10px] font-bold text-purple-700">ילדים 🎈</span>
+            </button>
 
-          {/* Packing */}
-          <button
-            onClick={() => handleTabClick("packing")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
-              activeTab === "packing"
-                ? "text-emerald-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <Package className="w-5 h-5" />
-            <span className="text-[10px]">תיקים</span>
-            {packingItems.filter((i) => !i.isPacked).length > 0 && (
-              <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-emerald-500" />
-            )}
-          </button>
+            {/* Packing */}
+            <button
+              onClick={() => handleTabClick("packing")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
+                activeTab === "packing"
+                  ? "text-emerald-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <Package className="w-5 h-5" />
+              <span className="text-[10px]">תיקים</span>
+              {packingItems.filter((i) => !i.isPacked).length > 0 && (
+                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-emerald-500" />
+              )}
+            </button>
 
-          {/* Meds */}
-          <button
-            onClick={() => handleTabClick("medications")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
-              activeTab === "medications"
-                ? "text-rose-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <Pill className="w-5 h-5" />
-            <span className="text-[10px]">תרופות</span>
-          </button>
+            {/* Meds */}
+            <button
+              onClick={() => handleTabClick("medications")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
+                activeTab === "medications"
+                  ? "text-rose-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <Pill className="w-5 h-5" />
+              <span className="text-[10px]">תרופות</span>
+            </button>
 
-          {/* Expenses */}
-          <button
-            onClick={() => handleTabClick("expenses")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
-              activeTab === "expenses"
-                ? "text-blue-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <DollarSign className="w-5 h-5" />
-            <span className="text-[10px]">הוצאות</span>
-          </button>
+            {/* Expenses */}
+            <button
+              onClick={() => handleTabClick("expenses")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
+                activeTab === "expenses"
+                  ? "text-blue-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <DollarSign className="w-5 h-5" />
+              <span className="text-[10px]">הוצאות</span>
+            </button>
 
-          {/* Inventory */}
-          <button
-            onClick={() => handleTabClick("inventory")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
-              activeTab === "inventory"
-                ? "text-amber-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <ShoppingBag className="w-5 h-5" />
-            <span className="text-[10px]">מידות</span>
-          </button>
+            {/* Inventory */}
+            <button
+              onClick={() => handleTabClick("inventory")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all relative ${
+                activeTab === "inventory"
+                  ? "text-amber-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <ShoppingBag className="w-5 h-5" />
+              <span className="text-[10px]">מידות</span>
+            </button>
 
-          {/* Chat */}
-          <button
-            onClick={() => handleTabClick("chat")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
-              activeTab === "chat"
-                ? "text-indigo-600 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
-          >
-            <MessageSquare className="w-5 h-5" />
-            <span className="text-[10px]">צ'אט</span>
-          </button>
+            {/* Chat */}
+            <button
+              onClick={() => handleTabClick("chat")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
+                activeTab === "chat"
+                  ? "text-indigo-600 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <MessageSquare className="w-5 h-5" />
+              <span className="text-[10px]">צ'אט</span>
+            </button>
 
-          {/* Admin */}
+            {/* Admin */}
+            <button
+              onClick={() => handleTabClick("admin")}
+              className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
+                activeTab === "admin"
+                  ? "text-indigo-950 font-bold scale-105"
+                  : "text-slate-400 hover:text-slate-600 font-medium"
+              }`}
+            >
+              <ShieldCheck className="w-5 h-5 text-indigo-700" />
+              <span className="text-[10px] font-bold text-indigo-900">אדמין</span>
+            </button>
+          </div>
+        </nav>
+      ) : (
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md text-white border-t border-slate-800 p-3 z-40 text-center flex items-center justify-between px-6 shadow-2xl">
+          <span className="text-xs font-bold text-slate-300">🔒 תצוגת קיוסק נעולה להגנה על הפרטיות</span>
           <button
-            onClick={() => handleTabClick("admin")}
-            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
-              activeTab === "admin"
-                ? "text-indigo-950 font-bold scale-105"
-                : "text-slate-400 hover:text-slate-600 font-medium"
-            }`}
+            onClick={handleToggleLock}
+            className="px-3 py-1.5 bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-xs hover:bg-amber-300"
           >
-            <ShieldCheck className="w-5 h-5 text-indigo-700" />
-            <span className="text-[10px] font-bold text-indigo-900">אדמין</span>
+            יציאה בקוד אדמין 🔓
           </button>
         </div>
-      </nav>
+      )}
     </div>
   );
 }

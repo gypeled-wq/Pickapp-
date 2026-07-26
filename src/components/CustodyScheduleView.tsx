@@ -24,8 +24,19 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
 }) => {
   const todayStr = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [viewMode, setViewMode] = useState<"daily" | "calendar">("calendar");
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+
+  // Month Calendar Helper Calculation
+  const selectedDateObj = new Date(selectedDate + "T00:00:00");
+  const currentYear = selectedDateObj.getFullYear();
+  const currentMonth = selectedDateObj.getMonth();
+
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sun
+
+  const monthName = selectedDateObj.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
   // New task form state
   const [taskTitle, setTaskTitle] = useState("");
@@ -290,51 +301,204 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
         </section>
       )}
 
-      {/* 2. Interactive Horizontal Date Slider */}
-      <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+      {/* View Mode Toggle & Calendar Header */}
+      <section className="flex flex-col gap-3" dir="rtl">
+        <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+          <button
+            onClick={() => setViewMode("calendar")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
+              viewMode === "calendar"
+                ? "bg-white text-indigo-950 shadow-xs"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
             <CalendarIcon className="w-4 h-4 text-indigo-600" />
-            <span>Select Schedule Day</span>
-          </h2>
-          <span className="text-xs text-slate-500">
-            {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
+            <span>📅 לוח שנה חודשי (צבעוני)</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode("daily")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 ${
+              viewMode === "daily"
+                ? "bg-white text-indigo-950 shadow-xs"
+                : "text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Clock className="w-4 h-4 text-indigo-600" />
+            <span>📋 סדר יום נגלל</span>
+          </button>
+        </div>
+
+        {/* Color Coding Legend Banner */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 flex items-center justify-between text-xs font-extrabold text-slate-700 shadow-2xs flex-wrap gap-2">
+          <span className="text-slate-400 font-bold text-[11px]">מפתח צבעים:</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3.5 h-3.5 rounded-full bg-rose-500 shadow-2xs" />
+              <span className="text-rose-900">אמא (שרה)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3.5 h-3.5 rounded-full bg-indigo-600 shadow-2xs" />
+              <span className="text-indigo-900">אבא (דוד)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* MONTH CALENDAR VIEW */}
+        {viewMode === "calendar" && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>לוח שנה: {monthName}</span>
+              </h3>
+              <div className="flex items-center gap-1 text-xs text-slate-500 font-bold">
+                <span>לחץ על יום להצגת המשימות</span>
+              </div>
+            </div>
+
+            {/* Weekdays Header */}
+            <div className="grid grid-cols-7 gap-1 text-center font-black text-[11px] text-slate-400 pb-1 border-b border-slate-100">
+              <span>א'</span>
+              <span>ב'</span>
+              <span>ג'</span>
+              <span>ד'</span>
+              <span>ה'</span>
+              <span>ו'</span>
+              <span>ש'</span>
+            </div>
+
+            {/* Month Days Grid */}
+            <div className="grid grid-cols-7 gap-1.5 text-xs">
+              {/* Padding empty slots for month start */}
+              {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
+                <div key={`pad-${idx}`} className="h-20 bg-slate-50/50 rounded-xl border border-dashed border-slate-100" />
+              ))}
+
+              {/* Days 1 to daysInMonth */}
+              {Array.from({ length: daysInMonth }).map((_, idx) => {
+                const dayNum = idx + 1;
+                const monthFormatted = String(currentMonth + 1).padStart(2, "0");
+                const dayFormatted = String(dayNum).padStart(2, "0");
+                const dateKey = `${currentYear}-${monthFormatted}-${dayFormatted}`;
+
+                const isSelected = dateKey === selectedDate;
+                const isToday = dateKey === todayStr;
+
+                const daySched = schedules.find((s) => s.date === dateKey);
+                const isMomCustody = daySched?.primaryParentId === "parent1";
+
+                // Tasks for this date
+                const dayTasks = tasks.filter((t) => t.date === dateKey);
+                const momTasksCount = dayTasks.filter((t) => t.responsibleParentId === "parent1").length;
+                const dadTasksCount = dayTasks.filter((t) => t.responsibleParentId === "parent2").length;
+
+                return (
+                  <div
+                    key={dateKey}
+                    onClick={() => setSelectedDate(dateKey)}
+                    className={`h-22 p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+                      isSelected
+                        ? "ring-2 ring-indigo-600 ring-offset-1 border-indigo-500 shadow-md scale-[1.02]"
+                        : isToday
+                        ? "border-amber-400 bg-amber-50/40"
+                        : "border-slate-100 hover:border-slate-300"
+                    } ${
+                      isMomCustody
+                        ? "bg-rose-50/40 hover:bg-rose-50/80"
+                        : "bg-indigo-50/40 hover:bg-indigo-50/80"
+                    }`}
+                  >
+                    {/* Top Row: Day Number & Custody Badge */}
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`w-6 h-6 rounded-full font-black text-xs flex items-center justify-center ${
+                          isToday
+                            ? "bg-amber-500 text-white shadow-2xs"
+                            : isSelected
+                            ? "bg-indigo-600 text-white"
+                            : "text-slate-800"
+                        }`}
+                      >
+                        {dayNum}
+                      </span>
+
+                      <span
+                        className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full ${
+                          isMomCustody
+                            ? "bg-rose-200 text-rose-900"
+                            : "bg-indigo-200 text-indigo-900"
+                        }`}
+                        title={isMomCustody ? "משמורת אמא (שרה)" : "משמורת אבא (דוד)"}
+                      >
+                        {isMomCustody ? "אמא" : "אבא"}
+                      </span>
+                    </div>
+
+                    {/* Task Indicators for Mom and Dad */}
+                    <div className="space-y-0.5 mt-1 overflow-hidden">
+                      {dayTasks.slice(0, 2).map((t) => {
+                        const isMomTask = t.responsibleParentId === "parent1";
+                        return (
+                          <div
+                            key={t.id}
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md truncate flex items-center gap-1 border ${
+                              isMomTask
+                                ? "bg-rose-500 text-white border-rose-600 shadow-2xs"
+                                : "bg-indigo-600 text-white border-indigo-700 shadow-2xs"
+                            }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                            <span className="truncate">{t.title}</span>
+                          </div>
+                        );
+                      })}
+
+                      {dayTasks.length > 2 && (
+                        <p className="text-[8px] font-extrabold text-slate-500 text-center">
+                          +{dayTasks.length - 2} נוספים
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* HORIZONTAL SLIDER (in Daily view or when date picked) */}
+        {viewMode === "daily" && (
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {dateWindow.map((dateStr) => {
+              const d = new Date(dateStr + "T00:00:00");
+              const isSelected = dateStr === selectedDate;
+              const isToday = dateStr === todayStr;
+              const sched = schedules.find((s) => s.date === dateStr);
+              const parent = (parents && parents.find((p) => p.id === sched?.primaryParentId)) || parents?.[0] || DEFAULT_PARENT;
+
+              return (
+                <button
+                  key={dateStr}
+                  onClick={() => setSelectedDate(dateStr)}
+                  className={`flex flex-col items-center min-w-[62px] p-2.5 rounded-2xl border transition-all text-center ${
+                    isSelected
+                      ? "bg-indigo-600 text-white border-indigo-700 shadow-sm scale-105"
+                      : isToday
+                      ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+                      : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                  }`}
+                >
+                  <span className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? "text-indigo-100" : "text-slate-400"}`}>
+                    {d.toLocaleDateString("he-IL", { weekday: "short" })}
+                  </span>
+                  <span className="text-base font-extrabold my-0.5">{d.getDate()}</span>
+                  <span className="text-xs">{parent.avatarUrl}</span>
+                </button>
+              );
             })}
-          </span>
-        </div>
-
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {dateWindow.map((dateStr) => {
-            const d = new Date(dateStr + "T00:00:00");
-            const isSelected = dateStr === selectedDate;
-            const isToday = dateStr === todayStr;
-            const sched = schedules.find((s) => s.date === dateStr);
-            const parent = (parents && parents.find((p) => p.id === sched?.primaryParentId)) || parents?.[0] || DEFAULT_PARENT;
-
-            return (
-              <button
-                key={dateStr}
-                onClick={() => setSelectedDate(dateStr)}
-                className={`flex flex-col items-center min-w-[62px] p-2.5 rounded-2xl border transition-all text-center ${
-                  isSelected
-                    ? "bg-indigo-600 text-white border-indigo-700 shadow-sm scale-105"
-                    : isToday
-                    ? "bg-indigo-50 border-indigo-200 text-indigo-900"
-                    : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
-                }`}
-              >
-                <span className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? "text-indigo-100" : "text-slate-400"}`}>
-                  {d.toLocaleDateString("en-US", { weekday: "short" })}
-                </span>
-                <span className="text-base font-extrabold my-0.5">{d.getDate()}</span>
-                <span className="text-xs">{parent.avatarUrl}</span>
-              </button>
-            );
-          })}
-        </div>
+          </div>
+        )}
       </section>
 
       {/* 3. Active Day Details & Tasks/Handoff Card */}

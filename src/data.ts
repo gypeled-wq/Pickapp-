@@ -723,8 +723,11 @@ export const StorageEngine = {
   confirmMedicationAdministered(id: string, parentId: string) {
     const idx = currentMedications.findIndex((m) => m.id === id);
     if (idx !== -1) {
+      const med = currentMedications[idx];
+      const newRemaining = Math.max(0, (med.remainingQuantity ?? 30) - (med.pillsPerDay ?? 1));
       currentMedications[idx] = {
-        ...currentMedications[idx],
+        ...med,
+        remainingQuantity: newRemaining,
         lastAdministered: new Date().toISOString(),
         lastAdministeredBy: parentId,
         handoffConfirmed: true,
@@ -732,7 +735,37 @@ export const StorageEngine = {
       saveData(KEYS.MEDICATIONS, currentMedications);
       notifyAll();
       setDoc(doc(db, "medications", id), cleanForFirestore(currentMedications[idx]));
-      this.addLog("Medication Administered", `Logged dose for ${currentMedications[idx].name}`);
+      this.addLog("Medication Administered", `Logged dose for ${med.name}. Remaining: ${newRemaining}`);
+    }
+  },
+
+  updateMedication(id: string, updates: Partial<Medication>) {
+    const idx = currentMedications.findIndex((m) => m.id === id);
+    if (idx !== -1) {
+      currentMedications[idx] = {
+        ...currentMedications[idx],
+        ...updates,
+      };
+      saveData(KEYS.MEDICATIONS, currentMedications);
+      notifyAll();
+      setDoc(doc(db, "medications", id), cleanForFirestore(currentMedications[idx]));
+      this.addLog("Medication Updated", `Updated details for ${currentMedications[idx].name}`);
+    }
+  },
+
+  refillMedication(id: string, newTotal: number = 30) {
+    const idx = currentMedications.findIndex((m) => m.id === id);
+    if (idx !== -1) {
+      currentMedications[idx] = {
+        ...currentMedications[idx],
+        totalQuantity: newTotal,
+        remainingQuantity: newTotal,
+        lastRefillDate: new Date().toISOString().split("T")[0],
+      };
+      saveData(KEYS.MEDICATIONS, currentMedications);
+      notifyAll();
+      setDoc(doc(db, "medications", id), cleanForFirestore(currentMedications[idx]));
+      this.addLog("Medication Refilled", `Refilled 30-day supply for ${currentMedications[idx].name}`);
     }
   },
 

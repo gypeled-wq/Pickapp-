@@ -20,6 +20,7 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [previewLightboxUrl, setPreviewLightboxUrl] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -27,6 +28,20 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
   const [category, setCategory] = useState<string>("activities");
   const [childId, setChildId] = useState(childrenList[0]?.id || "child1");
   const [paidByParentId, setPaidByParentId] = useState(activeParentId);
+  const [receiptUrl, setReceiptUrl] = useState<string>("");
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          setReceiptUrl(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const filteredExpenses = expenses.filter((e) => {
     const matchChild = selectedChildId === "all" || !e.childId || e.childId === selectedChildId;
@@ -66,10 +81,12 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
       childId,
       splitRatio: 0.5,
       settled: false,
+      receiptUrl: receiptUrl || undefined,
     });
 
     setTitle("");
     setAmount("");
+    setReceiptUrl("");
     setShowAddModal(false);
   };
 
@@ -170,12 +187,22 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1 flex-wrap">
                     <span className="font-bold text-slate-700">₪{exp.amount} סה"כ</span>
                     <span>•</span>
                     <span>שולם ע"י {payer?.name ? payer.name.split(" ")[0] : "הורה"}</span>
                     <span>•</span>
                     <span className="text-blue-600 font-bold">₪{halfAmount} חלקך</span>
+
+                    {exp.receiptUrl && (
+                      <button
+                        onClick={() => setPreviewLightboxUrl(exp.receiptUrl || null)}
+                        className="inline-flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded-lg font-bold hover:bg-indigo-100 transition-all"
+                      >
+                        <Receipt className="w-3 h-3 text-indigo-600" />
+                        <span>צפה בקבלה 🧾</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -285,6 +312,27 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
                 </div>
               </div>
 
+              {/* File / Image Upload for Receipt */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>צירוף צילום קבלה/חשבונית (קובץ/תמונה)</span>
+                  {receiptUrl && <span className="text-emerald-600 font-extrabold text-[10px]">✓ הקובץ הועלה</span>}
+                </label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleFileUpload}
+                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                  />
+                </div>
+                {receiptUrl && (
+                  <div className="mt-2 relative rounded-xl overflow-hidden border border-slate-200 h-20 bg-slate-50 flex items-center justify-center">
+                    <img src={receiptUrl} alt="תצוגה מקדימה" className="h-full object-contain" />
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -301,6 +349,45 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Receipt Lightbox Modal */}
+      {previewLightboxUrl && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-4 max-w-lg w-full max-h-[90vh] flex flex-col gap-3 relative shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                <Receipt className="w-4 h-4 text-indigo-600" />
+                <span>צפייה בקבלה המצורפת</span>
+              </h3>
+              <button
+                onClick={() => setPreviewLightboxUrl(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-900 rounded-2xl p-2 min-h-[300px]">
+              <img src={previewLightboxUrl} alt="קבלה" className="max-h-[65vh] object-contain rounded-xl" />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <a
+                href={previewLightboxUrl}
+                download="receipt-image"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-indigo-700"
+              >
+                הורד תמונה 📥
+              </a>
+              <button
+                onClick={() => setPreviewLightboxUrl(null)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200"
+              >
+                סגור
+              </button>
+            </div>
           </div>
         </div>
       )}
