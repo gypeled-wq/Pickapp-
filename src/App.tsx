@@ -88,6 +88,9 @@ export default function App() {
       setIsPinModalOpen(true);
     } else {
       setActiveTab(targetTab);
+      if (targetTab === "drivers" || targetTab === "kids") {
+        setIsLocked(true);
+      }
     }
   };
 

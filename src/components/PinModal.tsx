@@ -15,7 +15,7 @@ export const PinModal: React.FC<PinModalProps> = ({
   onClose,
   onSuccess,
   title = "אימות קוד גישה לנעילה",
-  description = "הזן קוד PIN בעל 4 ספרות לעבור לשונית (קוד ברירת מחדל: 1234)",
+  description = "הזן קוד PIN בעל 4 ספרות לשחרור הנעילה",
 }) => {
   const [inputPin, setInputPin] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -37,7 +37,7 @@ export const PinModal: React.FC<PinModalProps> = ({
           setInputPin("");
           onSuccess();
         } else {
-          setErrorMsg("קוד שגוי, נסה שוב (ברירת מחדל: 1234)");
+          setErrorMsg("קוד שגוי, נסה שוב");
           setInputPin("");
         }
       }
@@ -134,7 +134,7 @@ export const PinModal: React.FC<PinModalProps> = ({
             <input
               type="password"
               maxLength={4}
-              placeholder="1234"
+              placeholder="****"
               value={newPin}
               onChange={(e) => setNewPin(e.target.value)}
               className="w-full text-center text-lg font-bold tracking-widest p-2.5 rounded-xl border border-slate-200 bg-slate-50"

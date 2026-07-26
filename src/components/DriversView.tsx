@@ -204,50 +204,6 @@ export const DriversView: React.FC<DriversViewProps> = ({
         ))}
       </div>
 
-      {/* Driver Profiles Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {drivers.map((driver) => {
-          const tasksCount = driverTasks.filter((t) => t.driverId === driver.id && !t.completed).length;
-          return (
-            <div
-              key={driver.id}
-              className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs flex items-center justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-xl shadow-xs">
-                  {driver.avatar}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-800">{driver.name}</h3>
-                    {tasksCount > 0 && (
-                      <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        {tasksCount} איסופים
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500">{driver.relation}</p>
-                  {driver.carInfo && (
-                    <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                      <Car className="w-3 h-3 text-slate-400" />
-                      {driver.carInfo}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <a
-                href={`tel:${driver.phone}`}
-                className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all shadow-xs"
-                title="חייג לנהג"
-              >
-                <Phone className="w-4 h-4" />
-              </a>
-            </div>
-          );
-        })}
-      </div>
-
       {/* Driver Pickups List Header */}
       <div className="flex items-center justify-between pt-2">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -393,6 +349,56 @@ export const DriversView: React.FC<DriversViewProps> = ({
           })}
         </div>
       )}
+
+      {/* Driver Profiles Cards (Moved to bottom) */}
+      <div className="pt-4 border-t border-slate-200/80 space-y-2.5">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <UserCheck className="w-4 h-4 text-orange-500" />
+          פרטי נהגים ומסיעים מורשים
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {drivers.map((driver) => {
+            const tasksCount = driverTasks.filter((t) => t.driverId === driver.id && !t.completed).length;
+            return (
+              <div
+                key={driver.id}
+                className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-xs flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-xl shadow-xs">
+                    {driver.avatar}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-slate-800">{driver.name}</h3>
+                      {tasksCount > 0 && (
+                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                          {tasksCount} איסופים
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">{driver.relation}</p>
+                    {driver.carInfo && (
+                      <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Car className="w-3 h-3 text-slate-400" />
+                        {driver.carInfo}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <a
+                  href={`tel:${driver.phone}`}
+                  className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-all shadow-xs"
+                  title="חייג לנהג"
+                >
+                  <Phone className="w-4 h-4" />
+                </a>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Modal: Claim Ride */}
       {claimingTaskId && (

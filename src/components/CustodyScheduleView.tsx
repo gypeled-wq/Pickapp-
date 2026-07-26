@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { CustodySchedule, TaskOrPickup, ParentProfile, Child, CustodySwapRequest } from "../types";
 import { StorageEngine } from "../data";
-import { Calendar as CalendarIcon, Clock, MapPin, ArrowRightLeft, Plus, CheckCircle2, Circle, AlertCircle, Sparkles } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, MapPin, ArrowRightLeft, Plus, CheckCircle2, Circle, AlertCircle, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface CustodyScheduleViewProps {
   schedules: CustodySchedule[];
@@ -37,6 +37,22 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
   const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sun
 
   const monthName = selectedDateObj.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+
+  const handlePrevMonth = () => {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setMonth(d.getMonth() - 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    setSelectedDate(`${year}-${month}-01`);
+  };
+
+  const handleNextMonth = () => {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setMonth(d.getMonth() + 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    setSelectedDate(`${year}-${month}-01`);
+  };
 
   // New task form state
   const [taskTitle, setTaskTitle] = useState("");
@@ -347,11 +363,32 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
         {/* MONTH CALENDAR VIEW */}
         {viewMode === "calendar" && (
           <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-xs space-y-3">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>לוח שנה: {monthName}</span>
-              </h3>
+            <div className="flex items-center justify-between border-b pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrevMonth}
+                  className="p-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 transition-all font-bold flex items-center gap-1 text-xs border border-slate-200/80 active:scale-95"
+                  title="חודש קודם"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  <span>קודם</span>
+                </button>
+
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-1.5 px-1">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>לוח שנה: {monthName}</span>
+                </h3>
+
+                <button
+                  onClick={handleNextMonth}
+                  className="p-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 transition-all font-bold flex items-center gap-1 text-xs border border-slate-200/80 active:scale-95"
+                  title="חודש הבא"
+                >
+                  <span>הבא</span>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+
               <div className="flex items-center gap-1 text-xs text-slate-500 font-bold">
                 <span>לחץ על יום להצגת המשימות</span>
               </div>
@@ -621,15 +658,15 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
       {/* Modal: Add Task */}
       {showAddTaskModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-base font-bold text-slate-800">Add Daily Event or Pickup</h3>
+          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150" dir="rtl">
+            <h3 className="text-base font-bold text-slate-800">הוספת אירוע או איסוף ללו"ז</h3>
             <form onSubmit={handleCreateTask} className="flex flex-col gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-600">Event Title</label>
+                <label className="text-xs font-semibold text-slate-600">שם האירוע / משימה</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Pickup Emma from Soccer"
+                  placeholder="למשל: איסוף נועם מחוג כדורגל"
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -638,7 +675,7 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Child</label>
+                  <label className="text-xs font-semibold text-slate-600">ילד/ה</label>
                   <select
                     value={taskChildId}
                     onChange={(e) => setTaskChildId(e.target.value)}
@@ -653,7 +690,7 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Time</label>
+                  <label className="text-xs font-semibold text-slate-600">שעה</label>
                   <input
                     type="time"
                     value={taskTime}
@@ -664,10 +701,10 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">Location (Optional)</label>
+                <label className="text-xs font-semibold text-slate-600">מיקום (רשות)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Community Turf Gate"
+                  placeholder="למשל: שער המגרש / בית הספר"
                   value={taskLocation}
                   onChange={(e) => setTaskLocation(e.target.value)}
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -680,13 +717,13 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                   onClick={() => setShowAddTaskModal(false)}
                   className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
                 >
-                  Cancel
+                  ביטול
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-indigo-700"
                 >
-                  Save Event
+                  שמור אירוע
                 </button>
               </div>
             </form>
@@ -697,15 +734,15 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
       {/* Modal: Request Custody Swap */}
       {showSwapModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4">
+          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4" dir="rtl">
             <div className="flex items-center gap-2">
               <ArrowRightLeft className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-base font-bold text-slate-800">Request Custody Swap</h3>
+              <h3 className="text-base font-bold text-slate-800">בקשת החלפת ימי משמורת</h3>
             </div>
 
             <form onSubmit={handleCreateSwap} className="flex flex-col gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-600">Date You Want to Swap Out</label>
+                <label className="text-xs font-semibold text-slate-600">תאריך שברצונך להחליף</label>
                 <input
                   type="date"
                   required
@@ -716,7 +753,7 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">Proposed Alternative Date (Optional)</label>
+                <label className="text-xs font-semibold text-slate-600">תאריך חלופי מוצע (רשות)</label>
                 <input
                   type="date"
                   value={proposedSubDate}
@@ -726,10 +763,10 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">Reason / Note</label>
+                <label className="text-xs font-semibold text-slate-600">סיבה / הערה</label>
                 <textarea
                   rows={2}
-                  placeholder="e.g. Birthday family dinner on Friday..."
+                  placeholder="למשל: אירוע משפחתי ביום שישי..."
                   value={swapNote}
                   onChange={(e) => setSwapNote(e.target.value)}
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -742,13 +779,13 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                   onClick={() => setShowSwapModal(false)}
                   className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
                 >
-                  Cancel
+                  ביטול
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-indigo-700"
                 >
-                  Send Swap Request
+                  שלח בקשת החלפה
                 </button>
               </div>
             </form>
