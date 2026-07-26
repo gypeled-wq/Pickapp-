@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Child, ParentProfile, DriverProfile, ActivityCategory } from "../types";
+import { Child, ParentProfile, DriverProfile, ActivityCategory, CustodyDayRule } from "../types";
 import { StorageEngine } from "../data";
 import {
   ShieldCheck,
@@ -19,6 +19,7 @@ import {
   Smile,
   Tag,
   Sparkles,
+  Calendar,
 } from "lucide-react";
 
 interface AdminViewProps {
@@ -32,7 +33,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
   parents,
   drivers,
 }) => {
-  const [activeTab, setActiveTab] = useState<"children" | "parents" | "drivers" | "categories" | "security">("children");
+  const [activeTab, setActiveTab] = useState<"children" | "parents" | "rules" | "drivers" | "categories" | "security">("children");
+
+  // Custody Rules State
+  const [custodyRules, setCustodyRulesState] = useState<CustodyDayRule[]>(() => StorageEngine.getCustodyRules());
+  const [rulesSavedMsg, setRulesSavedMsg] = useState("");
+
+  const handleUpdateRuleDay = (dayOfWeek: number, field: keyof CustodyDayRule, value: any) => {
+    setCustodyRulesState((prev) =>
+      prev.map((r) => (r.dayOfWeek === dayOfWeek ? { ...r, [field]: value } : r))
+    );
+  };
+
+  const handleSaveCustodyRules = (e: React.FormEvent) => {
+    e.preventDefault();
+    StorageEngine.setCustodyRules(custodyRules);
+    setRulesSavedMsg("חוקיות המשמורת וזמני ההחלפה נשמרו בהצלחה ועודכנו בלוח הזמנים!");
+    setTimeout(() => setRulesSavedMsg(""), 4000);
+  };
 
   // Children editing state
   const [editingChild, setEditingChild] = useState<Child | null>(null);
@@ -197,7 +215,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </p>
 
         {/* Tab Switcher inside Admin */}
-        <div className="grid grid-cols-5 gap-1 mt-4 bg-white/10 p-1 rounded-2xl backdrop-blur-md text-[11px]">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 mt-4 bg-white/10 p-1 rounded-2xl backdrop-blur-md text-[11px]">
           <button
             onClick={() => setActiveTab("children")}
             className={`py-2 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 ${
@@ -220,6 +238,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
           >
             <Users className="w-3.5 h-3.5" />
             <span>הורים</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("rules")}
+            className={`py-2 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 ${
+              activeTab === "rules"
+                ? "bg-white text-indigo-950 shadow-sm"
+                : "text-slate-300 hover:text-white"
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>חוקיות</span>
           </button>
 
           <button
@@ -612,6 +642,211 @@ export const AdminView: React.FC<AdminViewProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {/* TAB: CUSTODY RULES & HANDOFF DAYS */}
+      {activeTab === "rules" && (
+        <section className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4" dir="rtl">
+          <div className="flex items-center justify-between border-b pb-3 flex-wrap gap-2">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span>📅</span>
+                <span>חוקיות ימי החלפה ומשמורת (א' - ש')</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                קבע עבור כל יום בשבוע מי ההורה האחראי (אמא, אבא או מתחלף), מי מתחיל בסבב, ומהם זמני ומיקומי ההחלפה.
+              </p>
+            </div>
+            <button
+              onClick={handleSaveCustodyRules}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-bold shadow-xs transition-all active:scale-95"
+            >
+              <Save className="w-4 h-4" />
+              <span>שמור חוקיות ועדכן לו"ז</span>
+            </button>
+          </div>
+
+          {rulesSavedMsg && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-2xl text-xs font-bold flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span>{rulesSavedMsg}</span>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {custodyRules.map((rule) => {
+              const dayNames = [
+                "יום ראשון (א')",
+                "יום שני (ב')",
+                "יום שלישי (ג')",
+                "יום רביעי (ד')",
+                "יום חמישי (ה')",
+                "יום שישי (ו')",
+                "יום שבת (ש')",
+              ];
+              const dayLabel = dayNames[rule.dayOfWeek] || rule.dayName;
+
+              return (
+                <div
+                  key={rule.dayOfWeek}
+                  className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3 transition-all hover:border-indigo-200"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-200/60 pb-2 flex-wrap gap-2">
+                    <span className="font-extrabold text-sm text-slate-900 bg-white px-3 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                      {dayLabel}
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {rule.assignedParent === "parent1"
+                        ? "משמורת קבועה: אמא"
+                        : rule.assignedParent === "parent2"
+                        ? "משמורת קבועה: אבא"
+                        : "משמורת מתחלפת ברוטציה"}
+                    </span>
+                  </div>
+
+                  {/* Parent Assignment Selection */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">הורה אחראי ביום זה:</label>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateRuleDay(rule.dayOfWeek, "assignedParent", "parent1")}
+                        className={`py-2 px-3 rounded-xl font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          rule.assignedParent === "parent1"
+                            ? "bg-rose-500 text-white border-rose-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-rose-50"
+                        }`}
+                      >
+                        <span>👩‍👧</span>
+                        <span>אמא (שרה)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateRuleDay(rule.dayOfWeek, "assignedParent", "parent2")}
+                        className={`py-2 px-3 rounded-xl font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          rule.assignedParent === "parent2"
+                            ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-indigo-50"
+                        }`}
+                      >
+                        <span>👨‍👦</span>
+                        <span>אבא (דוד)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateRuleDay(rule.dayOfWeek, "assignedParent", "alternating")}
+                        className={`py-2 px-3 rounded-xl font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                          rule.assignedParent === "alternating"
+                            ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-amber-50"
+                        }`}
+                      >
+                        <span>🔄</span>
+                        <span>מתחלף (רוטציה)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Alternating Parent Options */}
+                  {rule.assignedParent === "alternating" && (
+                    <div className="bg-amber-50/80 border border-amber-200/80 p-3 rounded-xl space-y-2 text-xs">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="font-bold text-amber-900">מי מתחיל בסבב הרוטציה?</span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRuleDay(rule.dayOfWeek, "alternatingStartParent", "parent1")}
+                            className={`px-3 py-1 rounded-lg font-bold border text-[11px] ${
+                              (rule.alternatingStartParent || "parent1") === "parent1"
+                                ? "bg-rose-500 text-white border-rose-600"
+                                : "bg-white text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            אמא
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRuleDay(rule.dayOfWeek, "alternatingStartParent", "parent2")}
+                            className={`px-3 py-1 rounded-lg font-bold border text-[11px] ${
+                              rule.alternatingStartParent === "parent2"
+                                ? "bg-indigo-600 text-white border-indigo-700"
+                                : "bg-white text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            אבא
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-amber-900 block mb-1">איפה מתחיל / נאסף הסבב?</label>
+                        <input
+                          type="text"
+                          placeholder="לדוגמה: בית אמא / איסוף מבית הספר"
+                          value={rule.alternatingStartLocation || ""}
+                          onChange={(e) => handleUpdateRuleDay(rule.dayOfWeek, "alternatingStartLocation", e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-amber-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Handoff Time & Location */}
+                  <div className="pt-2 border-t border-slate-200/60 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={!!rule.hasHandoff}
+                        onChange={(e) => handleUpdateRuleDay(rule.dayOfWeek, "hasHandoff", e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded-xs focus:ring-indigo-500"
+                      />
+                      <span>יש החלפה (Handoff) מעבר הורים ביום זה</span>
+                    </label>
+
+                    {rule.hasHandoff && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+                        <div>
+                          <label className="text-slate-600 font-bold block mb-1">זמן החלפה / מעבר:</label>
+                          <input
+                            type="text"
+                            placeholder="למשל: 17:00 או בסיום המסגרת (16:00)"
+                            value={rule.handoffTime || ""}
+                            onChange={(e) => handleUpdateRuleDay(rule.dayOfWeek, "handoffTime", e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-slate-600 font-bold block mb-1">מיקום החלפה / מעבר:</label>
+                          <input
+                            type="text"
+                            placeholder="למשל: שער בית הספר / בית אמא"
+                            value={rule.handoffLocation || ""}
+                            onChange={(e) => handleUpdateRuleDay(rule.dayOfWeek, "handoffLocation", e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="pt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveCustodyRules}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-extrabold shadow-md active:scale-95 transition-all"
+            >
+              <Save className="w-4 h-4" />
+              <span>שמור חוקיות והחל על לוח הזמנים במערכת</span>
+            </button>
+          </div>
+        </section>
       )}
 
       {/* TAB 3: DRIVERS MANAGEMENT */}

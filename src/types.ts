@@ -31,6 +31,18 @@ export interface CustodySchedule {
   notes?: string;
 }
 
+export interface CustodyDayRule {
+  id?: string;
+  dayOfWeek: number; // 0 = Sunday (א'), 1 = Monday (ב'), ..., 6 = Saturday (ש')
+  dayName: string; // e.g. 'יום ראשון (א\')'
+  assignedParent: 'parent1' | 'parent2' | 'alternating'; // אמא, אבא, מתחלף
+  alternatingStartParent?: 'parent1' | 'parent2'; // מי מתחיל (למשל אמא או אבא)
+  alternatingStartLocation?: string; // איפה מתחיל
+  handoffTime?: string; // e.g. '17:00'
+  handoffLocation?: string; // e.g. 'שער בית הספר'
+  hasHandoff?: boolean;
+}
+
 export interface TaskOrPickup {
   id: string;
   title: string;

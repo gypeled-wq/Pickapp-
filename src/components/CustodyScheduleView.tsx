@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { CustodySchedule, TaskOrPickup, ParentProfile, Child, CustodySwapRequest } from "../types";
+import { CustodySchedule, TaskOrPickup, ParentProfile, Child, CustodySwapRequest, DriverProfile, DriverPickupTask } from "../types";
 import { StorageEngine } from "../data";
-import { Calendar as CalendarIcon, Clock, MapPin, ArrowRightLeft, Plus, CheckCircle2, Circle, AlertCircle, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, MapPin, ArrowRightLeft, Plus, CheckCircle2, Circle, AlertCircle, Sparkles, ChevronLeft, ChevronRight, Car, Phone, UserCheck, Navigation } from "lucide-react";
 
 interface CustodyScheduleViewProps {
   schedules: CustodySchedule[];
@@ -11,6 +11,8 @@ interface CustodyScheduleViewProps {
   activeParentId: string;
   selectedChildId: string | "all";
   swaps: CustodySwapRequest[];
+  drivers?: DriverProfile[];
+  driverTasks?: DriverPickupTask[];
 }
 
 export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
@@ -21,6 +23,8 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
   activeParentId,
   selectedChildId,
   swaps,
+  drivers = [],
+  driverTasks = [],
 }) => {
   const todayStr = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
@@ -65,6 +69,48 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
   const [swapDate, setSwapDate] = useState(todayStr);
   const [proposedSubDate, setProposedSubDate] = useState("");
   const [swapNote, setSwapNote] = useState("");
+
+  // Driver Pickup Modal State
+  const [showDriverPickupModal, setShowDriverPickupModal] = useState(false);
+  const [dpDriverId, setDpDriverId] = useState("unassigned");
+  const [dpChildId, setDpChildId] = useState(childrenList[0]?.id || "child1");
+  const [dpTime, setDpTime] = useState("16:00");
+  const [dpType, setDpType] = useState<"pickup" | "dropoff" | "babysitter" | "combined">("pickup");
+  const [dpLocation, setDpLocation] = useState("");
+  const [dpDestination, setDpDestination] = useState("");
+  const [dpNotes, setDpNotes] = useState("");
+
+  // Claim ride state
+  const [claimingDriverTaskId, setClaimingDriverTaskId] = useState<string | null>(null);
+  const [claimingDriverId, setClaimingDriverId] = useState(drivers[0]?.id || "");
+
+  const handleCreateDriverTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dpLocation) return;
+    StorageEngine.addDriverTask({
+      driverId: dpDriverId,
+      childId: dpChildId,
+      type: dpType,
+      date: selectedDate,
+      time: dpTime,
+      location: dpLocation,
+      destination: dpDestination || "בית/מסגרת",
+      completed: false,
+      notes: dpNotes,
+      assignedByParentId: activeParentId,
+    });
+    setShowDriverPickupModal(false);
+    setDpLocation("");
+    setDpDestination("");
+    setDpNotes("");
+  };
+
+  const handleClaimDriverTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!claimingDriverTaskId || !claimingDriverId) return;
+    StorageEngine.claimDriverTask(claimingDriverTaskId, claimingDriverId);
+    setClaimingDriverTaskId(null);
+  };
 
   const todaySchedule = schedules.find((s) => s.date === todayStr) || {
     date: todayStr,
@@ -264,6 +310,147 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
             </div>
           </div>
         </div>
+      </section>
+
+      {/* 3. Driver Rides Array Rubric (מערך ההסעות והאיסופים) */}
+      <section className="bg-gradient-to-br from-amber-500 via-orange-600 to-amber-600 rounded-3xl p-4 text-white shadow-md space-y-3" dir="rtl">
+        <div className="flex items-center justify-between border-b border-white/20 pb-2.5 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-xl bg-white/20 text-white text-base">🚘</span>
+            <div>
+              <h3 className="text-sm font-extrabold text-white">מערך ההסעות והאיסופים היומי</h3>
+              <p className="text-[11px] opacity-90">איסופים לנהגים, סבים/סבתות ובייביסיטר ליום {selectedDate}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowDriverPickupModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-orange-700 hover:bg-orange-50 rounded-2xl text-xs font-bold shadow-xs active:scale-95 transition-all"
+          >
+            <Plus className="w-3.5 h-3.5 text-orange-600" />
+            <span>הוסף איסוף לנהג</span>
+          </button>
+        </div>
+
+        {/* List of driver tasks for selected date (or fallback) */}
+        {(() => {
+          const dateDriverTasks = driverTasks.filter((t) => t.date === selectedDate);
+          const tasksToShow = dateDriverTasks.length > 0 ? dateDriverTasks : driverTasks.slice(0, 3);
+
+          if (tasksToShow.length === 0) {
+            return (
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 text-center text-xs text-white/90">
+                אין איסופי נהגים מוגדרים ליום זה. לחץ על "הוסף איסוף לנהג" כדי לשבץ נהג/מסיע.
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-2">
+              {dateDriverTasks.length === 0 && (
+                <p className="text-[11px] text-amber-100 font-bold bg-black/15 px-3 py-1 rounded-xl">
+                  📌 מציג איסופים קרובים ברשת (אין איסוף ספציפי בתאריך שנבחר):
+                </p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {tasksToShow.map((dt) => {
+                  const driver = drivers.find((d) => d.id === dt.driverId);
+                  const child = childrenList.find((c) => c.id === dt.childId);
+
+                  return (
+                    <div
+                      key={dt.id}
+                      className="bg-white text-slate-800 rounded-2xl p-3 shadow-xs space-y-2 border border-orange-100"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-200/60">
+                            ⏰ {dt.time}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                            {child ? `${child.avatar} ${child.name}` : "כל הילדים"}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => StorageEngine.toggleDriverTask(dt.id)}
+                          className="text-slate-400 hover:text-emerald-600"
+                          title="סמן כהושלם"
+                        >
+                          {dt.completed ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          ) : (
+                            <Circle className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-bold text-slate-900 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                          <span>מאיפה: {dt.location}</span>
+                        </p>
+                        <p className="text-slate-600 flex items-center gap-1 text-[11px]">
+                          <Navigation className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span>לאן: {dt.destination}</span>
+                        </p>
+                        {dt.notes && (
+                          <p className="text-[11px] text-slate-500 italic bg-slate-50 p-1.5 rounded-lg">
+                            "{dt.notes}"
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Driver assignment bar */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        {driver ? (
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                              <span>{driver.avatar}</span>
+                              <span>{driver.name}</span>
+                              <span className="text-[10px] font-normal text-slate-500">({driver.relation})</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <a
+                                href={`tel:${driver.phone}`}
+                                className="p-1.5 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all"
+                                title="חייג לנהג"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                              </a>
+                              <button
+                                onClick={() => {
+                                  setClaimingDriverTaskId(dt.id);
+                                  setClaimingDriverId(driver.id);
+                                }}
+                                className="text-[10px] text-orange-600 font-bold hover:underline px-1"
+                              >
+                                החלף
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between w-full bg-rose-50 p-1.5 rounded-xl border border-rose-200">
+                            <span className="text-[11px] font-bold text-rose-700 flex items-center gap-1">
+                              ⚠️ טרם שובץ נהג
+                            </span>
+                            <button
+                              onClick={() => {
+                                setClaimingDriverTaskId(dt.id);
+                                setClaimingDriverId(drivers[0]?.id || "");
+                              }}
+                              className="px-2.5 py-1 bg-rose-600 text-white rounded-lg text-[10px] font-bold shadow-2xs hover:bg-rose-700 active:scale-95 transition-all"
+                            >
+                              שבץ נהג
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </section>
 
       {/* Pending Swaps Banner (if any) */}
@@ -786,6 +973,189 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                   className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-indigo-700"
                 >
                   שלח בקשת החלפה
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Driver Pickup Task Modal */}
+      {showDriverPickupModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+                <span>🚘</span>
+                <span>הגדרת איסוף חדש לנהג/מסיע</span>
+              </h3>
+              <button
+                onClick={() => setShowDriverPickupModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDriverTask} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700">שיוך לילד</label>
+                <select
+                  value={dpChildId}
+                  onChange={(e) => setDpChildId(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                >
+                  <option value="all">👧👦 כל הילדים</option>
+                  {childrenList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.avatar} {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">נהג/מסיע משובץ</label>
+                <select
+                  value={dpDriverId}
+                  onChange={(e) => setDpDriverId(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                >
+                  <option value="unassigned">⚠️ פתוח לכל נהג פנוי (טרם שובץ)</option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.avatar} {d.name} ({d.relation})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-700">שעה</label>
+                  <input
+                    type="time"
+                    required
+                    value={dpTime}
+                    onChange={(e) => setDpTime(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700">סוג משימה</label>
+                  <select
+                    value={dpType}
+                    onChange={(e) => setDpType(e.target.value as any)}
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                  >
+                    <option value="pickup">🚗 איסוף (Pickup)</option>
+                    <option value="dropoff">🏫 הורדה (Dropoff)</option>
+                    <option value="babysitter">👩‍🦰 בייביסיטר</option>
+                    <option value="combined">🔄 משולב</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">מאיפה אוספים?</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="למשל: בית ספר יסודי - שער ראשי"
+                  value={dpLocation}
+                  onChange={(e) => setDpLocation(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">לאן מסיעים (יעד)?</label>
+                <input
+                  type="text"
+                  placeholder="למשל: חוג כדורגל / בית אמא"
+                  value={dpDestination}
+                  onChange={(e) => setDpDestination(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">הערות לנהג</label>
+                <input
+                  type="text"
+                  placeholder="למשל: לתת לה בקבוק מים מהאוטו"
+                  value={dpNotes}
+                  onChange={(e) => setDpNotes(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDriverPickupModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-orange-700"
+                >
+                  צור איסוף
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Claim / Assign Driver Modal */}
+      {claimingDriverTaskId && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+                <span>🚘</span>
+                <span>שיבוץ / החלפת נהג לנסיעה</span>
+              </h3>
+              <button
+                onClick={() => setClaimingDriverTaskId(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleClaimDriverTask} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700">בחר נהג מהרשימה:</label>
+                <select
+                  value={claimingDriverId}
+                  onChange={(e) => setClaimingDriverId(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                >
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.avatar} {d.name} ({d.relation}) - {d.carInfo || "אין פרטי רכב"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setClaimingDriverTaskId(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-orange-700"
+                >
+                  אשר שיבוץ נהג
                 </button>
               </div>
             </form>

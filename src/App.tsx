@@ -166,6 +166,8 @@ export default function App() {
             activeParentId={activeParentId}
             selectedChildId={selectedChildId}
             swaps={swaps}
+            drivers={drivers}
+            driverTasks={driverTasks}
           />
         )}
 

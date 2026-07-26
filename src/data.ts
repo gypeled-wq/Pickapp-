@@ -7,6 +7,7 @@ import {
   Child,
   ParentProfile,
   CustodySchedule,
+  CustodyDayRule,
   TaskOrPickup,
   PackingItem,
   Medication,
@@ -26,6 +27,16 @@ import {
 } from "./types";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
+
+export const DEFAULT_CUSTODY_RULES: CustodyDayRule[] = [
+  { dayOfWeek: 0, dayName: "יום ראשון (א')", assignedParent: "alternating", alternatingStartParent: "parent1", alternatingStartLocation: "בית אמא", handoffTime: "17:00", handoffLocation: "שער בית הספר", hasHandoff: true },
+  { dayOfWeek: 1, dayName: "יום שני (ב')", assignedParent: "parent1", handoffTime: "16:00", handoffLocation: "בית אמא", hasHandoff: false },
+  { dayOfWeek: 2, dayName: "יום שלישי (ג')", assignedParent: "parent1", handoffTime: "16:00", handoffLocation: "בית אמא", hasHandoff: false },
+  { dayOfWeek: 3, dayName: "יום רביעי (ד')", assignedParent: "parent1", handoffTime: "16:00", handoffLocation: "בית אמא", hasHandoff: false },
+  { dayOfWeek: 4, dayName: "יום חמישי (ה')", assignedParent: "parent2", handoffTime: "17:00", handoffLocation: "שער בית הספר", hasHandoff: true },
+  { dayOfWeek: 5, dayName: "יום שישי (ו')", assignedParent: "parent2", handoffTime: "13:00", handoffLocation: "בית אבא", hasHandoff: false },
+  { dayOfWeek: 6, dayName: "יום שבת (ש')", assignedParent: "parent2", handoffTime: "19:00", handoffLocation: "בית אבא", hasHandoff: false },
+];
 
 // Initial Mock Data
 const INITIAL_CHILDREN: Child[] = DEFAULT_CHILDREN;
@@ -345,6 +356,7 @@ const KEYS = {
   DRIVER_TASKS: "nestflow_driver_tasks_v1",
   ACTIVITY_CATEGORIES: "nestflow_act_categories_v1",
   PIN_CODE: "nestflow_pin_code_v1",
+  CUSTODY_RULES: "nestflow_custody_rules_v1",
 };
 
 export function loadData<T>(key: string, initial: T): T {
@@ -410,6 +422,7 @@ let currentDrivers: DriverProfile[] = loadData(KEYS.DRIVERS, INITIAL_DRIVERS);
 let currentDriverTasks: DriverPickupTask[] = loadData(KEYS.DRIVER_TASKS, INITIAL_DRIVER_TASKS);
 let currentActivityCategories: ActivityCategory[] = loadData(KEYS.ACTIVITY_CATEGORIES, DEFAULT_ACTIVITY_CATEGORIES);
 let currentPinCode: string = loadData(KEYS.PIN_CODE, DEFAULT_PIN);
+let currentCustodyRules: CustodyDayRule[] = loadData(KEYS.CUSTODY_RULES, DEFAULT_CUSTODY_RULES);
 
 function cleanForFirestore(obj: any): any {
   if (obj === null || obj === undefined) return null;
@@ -457,6 +470,8 @@ async function startFirebaseSync() {
   await syncCollection("drivers", currentDrivers, INITIAL_DRIVERS);
   await syncCollection("driverTasks", currentDriverTasks, INITIAL_DRIVER_TASKS);
   await syncCollection("activityCategories", currentActivityCategories, DEFAULT_ACTIVITY_CATEGORIES);
+  await syncCollection("custodyRules", currentCustodyRules, DEFAULT_CUSTODY_RULES);
+  await syncCollection("logs", currentLogs, INITIAL_LOGS);
 
   // Real-time Firestore Listeners
   onSnapshot(collection(db, "schedules"), (snap) => {
@@ -468,6 +483,28 @@ async function startFirebaseSync() {
       notifyAll();
     }
   }, (err) => console.warn("Firestore schedules snapshot error:", err));
+
+  onSnapshot(collection(db, "custodyRules"), (snap) => {
+    const list: CustodyDayRule[] = [];
+    snap.forEach((d) => list.push(d.data() as CustodyDayRule));
+    if (list.length > 0) {
+      list.sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+      currentCustodyRules = list;
+      saveData(KEYS.CUSTODY_RULES, list);
+      notifyAll();
+    }
+  }, (err) => console.warn("Firestore custodyRules snapshot error:", err));
+
+  onSnapshot(collection(db, "logs"), (snap) => {
+    const list: ActivityLog[] = [];
+    snap.forEach((d) => list.push(d.data() as ActivityLog));
+    if (list.length > 0) {
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      currentLogs = list;
+      saveData(KEYS.LOGS, list);
+      notifyAll();
+    }
+  }, (err) => console.warn("Firestore logs snapshot error:", err));
 
   onSnapshot(collection(db, "tasks"), (snap) => {
     const list: TaskOrPickup[] = [];
@@ -909,6 +946,7 @@ export const StorageEngine = {
     currentLogs.unshift(newLog);
     saveData(KEYS.LOGS, currentLogs);
     notifyAll();
+    setDoc(doc(db, "logs", newLog.id), cleanForFirestore(newLog));
   },
 
   // Messages
@@ -1072,5 +1110,70 @@ export const StorageEngine = {
     currentPinCode = pin;
     saveData(KEYS.PIN_CODE, pin);
     notifyAll();
+  },
+
+  // Custody Rules (Days א-ש)
+  getCustodyRules(): CustodyDayRule[] {
+    return currentCustodyRules && currentCustodyRules.length > 0 ? currentCustodyRules : DEFAULT_CUSTODY_RULES;
+  },
+
+  setCustodyRules(rules: CustodyDayRule[]) {
+    currentCustodyRules = rules;
+    saveData(KEYS.CUSTODY_RULES, rules);
+    rules.forEach((rule) => {
+      const docId = `rule_day_${rule.dayOfWeek}`;
+      setDoc(doc(db, "custodyRules", docId), cleanForFirestore({ ...rule, id: docId }));
+    });
+    this.recalculateSchedulesFromRules(rules);
+    notifyAll();
+    this.addLog("Custody Rules Updated", "Updated weekly custody rules (Sunday to Saturday)");
+  },
+
+  recalculateSchedulesFromRules(rules: CustodyDayRule[]) {
+    const newSchedules: CustodySchedule[] = [];
+    const today = new Date();
+
+    // Recalculate 90 days (-15 to +75 days)
+    for (let i = -15; i < 75; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const dateStr = d.toISOString().split("T")[0];
+      const dayOfWeek = d.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+
+      const rule = rules.find((r) => r.dayOfWeek === dayOfWeek) || rules[dayOfWeek];
+
+      let primaryParentId = "parent1";
+      if (rule) {
+        if (rule.assignedParent === "parent1" || rule.assignedParent === "parent2") {
+          primaryParentId = rule.assignedParent;
+        } else if (rule.assignedParent === "alternating") {
+          // Alternating week calculation based on week index
+          const weekNum = Math.floor((d.getTime() - new Date("2026-01-01").getTime()) / (86400000 * 7));
+          const startParent = rule.alternatingStartParent || "parent1";
+          const otherParent = startParent === "parent1" ? "parent2" : "parent1";
+          primaryParentId = Math.abs(weekNum) % 2 === 0 ? startParent : otherParent;
+        }
+      }
+
+      const hasHandoff = rule ? !!rule.hasHandoff : (dayOfWeek === 4 || dayOfWeek === 0);
+      const handoffTime = rule?.handoffTime || (hasHandoff ? "17:00" : undefined);
+      const handoffLocation = rule?.handoffLocation || (hasHandoff ? "שער בית הספר" : undefined);
+
+      const schedItem: CustodySchedule = {
+        id: `sched_${dateStr}`,
+        date: dateStr,
+        primaryParentId,
+        hasHandoff,
+        handoffTime,
+        handoffLocation,
+        notes: hasHandoff ? `החלפה יומית ב-${handoffTime}` : undefined,
+      };
+
+      newSchedules.push(schedItem);
+      setDoc(doc(db, "schedules", schedItem.id), cleanForFirestore(schedItem));
+    }
+
+    currentSchedules = newSchedules;
+    saveData(KEYS.SCHEDULES, currentSchedules);
   },
 };
