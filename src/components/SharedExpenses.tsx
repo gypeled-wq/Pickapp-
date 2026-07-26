@@ -74,16 +74,16 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
   };
 
   const categories = [
-    { id: "all", label: "All Expenses" },
-    { id: "activities", label: "⚽ Activities" },
-    { id: "school", label: "📚 School" },
-    { id: "medical", label: "🩺 Medical" },
-    { id: "clothing", label: "👕 Clothing" },
-    { id: "other", label: "🧾 Other" },
+    { id: "all", label: "כל ההוצאות" },
+    { id: "activities", label: "⚽ חוגים וספורט" },
+    { id: "school", label: "📚 לימודים וספרים" },
+    { id: "medical", label: "🩺 רפואה ובריאות" },
+    { id: "clothing", label: "👕 ביגוד והנעלה" },
+    { id: "other", label: "🧾 שונות" },
   ];
 
   return (
-    <div className="flex flex-col gap-4 pb-24">
+    <div className="flex flex-col gap-4 pb-24" dir="rtl">
       {/* Balance Summary Banner */}
       <section className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-3xl p-5 text-white shadow-md flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -92,8 +92,8 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
               💳
             </div>
             <div>
-              <h2 className="text-base font-bold leading-tight">Shared Expenses</h2>
-              <p className="text-xs text-blue-100">50/50 Split & Reimbursements</p>
+              <h2 className="text-base font-extrabold leading-tight">ניהול הוצאות משותפות</h2>
+              <p className="text-xs text-blue-100">חלוקה 50/50 והתחשבנות הדדית</p>
             </div>
           </div>
 
@@ -102,23 +102,23 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-blue-900 rounded-2xl text-xs font-bold shadow-xs hover:bg-blue-50 transition-all active:scale-95 shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>Log Cost</span>
+            <span>הוסף הוצאה</span>
           </button>
         </div>
 
         {/* Balance Card */}
         <div className="bg-black/15 backdrop-blur-xs p-3.5 rounded-2xl flex items-center justify-between border border-white/10">
           <div>
-            <p className="text-[11px] text-blue-200 font-medium">NET UNSETTLED BALANCE</p>
+            <p className="text-[11px] text-blue-200 font-bold">מאזן התחשבנות חצי-חצי</p>
             {Math.abs(netBalance) < 0.01 ? (
-              <p className="text-sm font-bold text-emerald-300 mt-0.5">All Balances Settled ✨</p>
+              <p className="text-sm font-bold text-emerald-300 mt-0.5">כל החשבונות מאוזנים ומשולמים ✨</p>
             ) : netBalance > 0 ? (
               <p className="text-sm font-bold text-white mt-0.5">
-                Dad (David) owes Mom (Sarah) <span className="text-emerald-300">${netBalance.toFixed(2)}</span>
+                אבא (דוד) חייב לאמא (שרה) <span className="text-emerald-300 font-black">₪{netBalance.toFixed(0)}</span>
               </p>
             ) : (
               <p className="text-sm font-bold text-white mt-0.5">
-                Mom (Sarah) owes Dad (David) <span className="text-emerald-300">${Math.abs(netBalance).toFixed(2)}</span>
+                אמא (שרה) חייבת לאבא (דוד) <span className="text-emerald-300 font-black">₪{Math.abs(netBalance).toFixed(0)}</span>
               </p>
             )}
           </div>
@@ -147,13 +147,13 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
         {filteredExpenses.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center text-slate-400 flex flex-col items-center gap-2">
             <Receipt className="w-8 h-8 text-slate-300" />
-            <p className="text-xs font-medium">No expenses logged for this filter.</p>
+            <p className="text-xs font-medium">אין הוצאות רשומות בקטגוריה זו.</p>
           </div>
         ) : (
           filteredExpenses.map((exp) => {
             const payer = parents.find((p) => p.id === exp.paidByParentId);
             const child = childrenList.find((c) => c.id === exp.childId);
-            const halfAmount = (exp.amount / 2).toFixed(2);
+            const halfAmount = (exp.amount / 2).toFixed(0);
 
             return (
               <div
@@ -171,11 +171,11 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
-                    <span className="font-semibold text-slate-700">${exp.amount.toFixed(2)} total</span>
+                    <span className="font-bold text-slate-700">₪{exp.amount} סה"כ</span>
                     <span>•</span>
-                    <span>Paid by {payer?.name ? payer.name.split(" ")[0] : "Co-parent"}</span>
+                    <span>שולם ע"י {payer?.name ? payer.name.split(" ")[0] : "הורה"}</span>
                     <span>•</span>
-                    <span className="text-blue-600 font-medium">${halfAmount} share</span>
+                    <span className="text-blue-600 font-bold">₪{halfAmount} חלקך</span>
                   </div>
                 </div>
 
@@ -188,7 +188,7 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
-                    {exp.settled ? "Settled" : "Settle"}
+                    {exp.settled ? "סולק" : "סלק חוב"}
                   </button>
 
                   <button
@@ -208,41 +208,41 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4">
-            <h3 className="text-base font-bold text-slate-800">Log Shared Expense</h3>
+            <h3 className="text-base font-extrabold text-slate-800">תיעוד הוצאה חדשה</h3>
 
-            <form onSubmit={handleAddExpense} className="flex flex-col gap-3">
+            <form onSubmit={handleAddExpense} className="flex flex-col gap-3 text-xs">
               <div>
-                <label className="text-xs font-semibold text-slate-600">Expense Title</label>
+                <label className="text-xs font-bold text-slate-700">תיאור ההוצאה</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Emma's Soccer Registration"
+                  placeholder="לדוגמה: תשלום לחוג כדורגל"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Amount ($)</label>
+                  <label className="text-xs font-bold text-slate-700">סכום ב-₪</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     required
-                    placeholder="140.00"
+                    placeholder="140"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Paid By</label>
+                  <label className="text-xs font-bold text-slate-700">שולם על ידי</label>
                   <select
                     value={paidByParentId}
                     onChange={(e) => setPaidByParentId(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none bg-white font-medium"
                   >
                     {parents.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -255,11 +255,11 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Child</label>
+                  <label className="text-xs font-bold text-slate-700">עבור הילד/ה</label>
                   <select
                     value={childId}
                     onChange={(e) => setChildId(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none bg-white font-medium"
                   >
                     {childrenList.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -270,17 +270,17 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Category</label>
+                  <label className="text-xs font-bold text-slate-700">קטגוריה</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none bg-white font-medium"
                   >
-                    <option value="activities">Activities</option>
-                    <option value="school">School</option>
-                    <option value="medical">Medical</option>
-                    <option value="clothing">Clothing</option>
-                    <option value="other">Other</option>
+                    <option value="activities">חוגים וספורט</option>
+                    <option value="school">לימודים וציוד</option>
+                    <option value="medical">רפואה ותרופות</option>
+                    <option value="clothing">ביגוד והנעלה</option>
+                    <option value="other">שונות</option>
                   </select>
                 </div>
               </div>
@@ -289,15 +289,15 @@ export const SharedExpenses: React.FC<SharedExpensesProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
                 >
-                  Cancel
+                  ביטול
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-blue-700"
                 >
-                  Save Expense
+                  שמור הוצאה
                 </button>
               </div>
             </form>

@@ -113,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              All Kids
+              כל הילדים
             </button>
             {childrenList.map((c) => (
               <button

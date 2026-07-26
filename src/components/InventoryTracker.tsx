@@ -65,7 +65,7 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-4 pb-24">
+    <div className="flex flex-col gap-4 pb-24" dir="rtl">
       {/* Banner */}
       <section className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-3xl p-5 text-white shadow-md flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -73,8 +73,8 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
             👟
           </div>
           <div>
-            <h2 className="text-base font-bold leading-tight">Kids Wear & Tear Tracker</h2>
-            <p className="text-xs text-amber-100">Clothing sizes & items needing replacement</p>
+            <h2 className="text-base font-extrabold leading-tight">מעקב מידות, ציוד והתבלות</h2>
+            <p className="text-xs text-amber-100">מידות ביגוד ונעליים ופריטים הדורשים חידוש</p>
           </div>
         </div>
 
@@ -83,14 +83,14 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-amber-900 rounded-2xl text-xs font-bold shadow-xs hover:bg-amber-50 transition-all active:scale-95 shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>Add Need</span>
+          <span>הוסף ציוד לחידוש</span>
         </button>
       </section>
 
       {/* 1. Kids Current Sizes Cards */}
       <section className="flex flex-col gap-2">
-        <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider px-1">
-          Current Sizes & Fits
+        <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider px-1">
+          מידות עדכניות של הילדים
         </h3>
 
         <div className="grid grid-cols-2 gap-2.5">
@@ -102,7 +102,7 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <span className="text-lg">{child.avatar}</span>
-                  <span className="text-xs font-bold text-slate-800">{child.name}</span>
+                  <span className="text-xs font-extrabold text-slate-800">{child.name}</span>
                 </div>
                 <button
                   onClick={() => {
@@ -111,6 +111,7 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
                     setEditShoe(child.shoeSize || "");
                   }}
                   className="text-slate-400 hover:text-amber-600 p-1"
+                  title="עדכן מידות"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
@@ -118,12 +119,12 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
 
               <div className="grid grid-cols-2 gap-1.5 text-center bg-slate-50 p-2 rounded-xl">
                 <div>
-                  <p className="text-[10px] text-slate-400 font-medium">Clothing</p>
-                  <p className="text-xs font-bold text-slate-800">{child.clothingSize || "N/A"}</p>
+                  <p className="text-[10px] text-slate-400 font-bold">ביגוד</p>
+                  <p className="text-xs font-black text-slate-800">{child.clothingSize || "לא צוין"}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-400 font-medium">Shoes</p>
-                  <p className="text-xs font-bold text-slate-800">{child.shoeSize || "N/A"}</p>
+                  <p className="text-[10px] text-slate-400 font-bold">נעליים</p>
+                  <p className="text-xs font-black text-slate-800">{child.shoeSize || "לא צוין"}</p>
                 </div>
               </div>
             </div>
@@ -133,14 +134,14 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
 
       {/* 2. Replacement & Wear/Tear List */}
       <section className="flex flex-col gap-2.5">
-        <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider px-1">
-          Replacement Needed ({filteredItems.filter((i) => i.status === "needs_replacement").length})
+        <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider px-1">
+          פריטים הדורשים החלפה/קנייה ({filteredItems.filter((i) => i.status === "needs_replacement").length})
         </h3>
 
         {filteredItems.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center text-slate-400 flex flex-col items-center gap-2">
             <ShoppingBag className="w-8 h-8 text-slate-300" />
-            <p className="text-xs font-medium">All items are in good condition.</p>
+            <p className="text-xs font-medium">כל הפריטים והציוד במצב מעולה!</p>
           </div>
         ) : (
           filteredItems.map((item) => {
@@ -166,8 +167,8 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
                   {item.notes && <p className="text-[11px] text-slate-500 mt-1">{item.notes}</p>}
 
                   {item.estimatedCost && (
-                    <p className="text-[11px] font-semibold text-amber-700 mt-1">
-                      Est. Cost: ${item.estimatedCost.toFixed(2)}
+                    <p className="text-[11px] font-extrabold text-amber-700 mt-1">
+                      עלות משוערת: ₪{item.estimatedCost}
                     </p>
                   )}
                 </div>
@@ -186,9 +187,9 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
                         : "text-slate-700 border-slate-200"
                     }`}
                   >
-                    <option value="needs_replacement">Needs Replace</option>
-                    <option value="replaced">Replaced ✨</option>
-                    <option value="good">Good Condition</option>
+                    <option value="needs_replacement">נדרשת קנייה</option>
+                    <option value="replaced">נקנה חודש ✨</option>
+                    <option value="good">מצב תקין</option>
                   </select>
 
                   <button
@@ -208,30 +209,30 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
       {editingChildSizes && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4">
-            <h3 className="text-base font-bold text-slate-800">
-              Update Sizes for {editingChildSizes.name}
+            <h3 className="text-base font-extrabold text-slate-800">
+              עדכון מידות עבור {editingChildSizes.name}
             </h3>
 
-            <form onSubmit={handleSaveSizes} className="flex flex-col gap-3">
+            <form onSubmit={handleSaveSizes} className="flex flex-col gap-3 text-xs">
               <div>
-                <label className="text-xs font-semibold text-slate-600">Clothing Size</label>
+                <label className="text-xs font-bold text-slate-700">מידת ביגוד</label>
                 <input
                   type="text"
-                  placeholder="e.g. 8-9Y"
+                  placeholder="לדוגמה: 8-9Y"
                   value={editClothing}
                   onChange={(e) => setEditClothing(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">Shoe Size</label>
+                <label className="text-xs font-bold text-slate-700">מידת נעליים</label>
                 <input
                   type="text"
-                  placeholder="e.g. 33 EU"
+                  placeholder="לדוגמה: 33 EU"
                   value={editShoe}
                   onChange={(e) => setEditShoe(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -239,15 +240,15 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingChildSizes(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
                 >
-                  Cancel
+                  ביטול
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-amber-700"
                 >
-                  Save Sizes
+                  שמור מידות
                 </button>
               </div>
             </form>
@@ -259,28 +260,28 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4">
-            <h3 className="text-base font-bold text-slate-800">Add Inventory Item Need</h3>
+            <h3 className="text-base font-extrabold text-slate-800">הוספת ציוד/פריט להחלפה</h3>
 
-            <form onSubmit={handleAddInventory} className="flex flex-col gap-3">
+            <form onSubmit={handleAddInventory} className="flex flex-col gap-3 text-xs">
               <div>
-                <label className="text-xs font-semibold text-slate-600">Item Title</label>
+                <label className="text-xs font-bold text-slate-700">שם הפריט</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. New Soccer Cleats Size 34 EU"
+                  placeholder="לדוגמה: נעלי כדורגל חדשות מידה 34"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Child</label>
+                  <label className="text-xs font-bold text-slate-700">עבור הילד/ה</label>
                   <select
                     value={childId}
                     onChange={(e) => setChildId(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none bg-white font-medium"
                   >
                     {childrenList.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -291,55 +292,55 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Category</label>
+                  <label className="text-xs font-bold text-slate-700">קטגוריה</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none bg-white font-medium"
                   >
-                    <option value="shoes">Shoes</option>
-                    <option value="clothing">Clothing</option>
-                    <option value="school_supplies">School Supplies</option>
-                    <option value="gear">Sports/Activity Gear</option>
-                    <option value="other">Other</option>
+                    <option value="shoes">נעליים</option>
+                    <option value="clothing">ביגוד</option>
+                    <option value="school_supplies">ציוד בית ספר</option>
+                    <option value="gear">ציוד חוגים/ספורט</option>
+                    <option value="other">שונות</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Est. Cost ($)</label>
+                  <label className="text-xs font-bold text-slate-700">עלות משוערת (₪)</label>
                   <input
                     type="number"
-                    placeholder="65.00"
+                    placeholder="150"
                     value={estimatedCost}
                     onChange={(e) => setEstimatedCost(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">Status</label>
+                  <label className="text-xs font-bold text-slate-700">סטטוס</label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as any)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none bg-white font-medium"
                   >
-                    <option value="needs_replacement">Needs Replacement</option>
-                    <option value="replaced">Replaced</option>
-                    <option value="good">Good</option>
+                    <option value="needs_replacement">נדרשת קנייה</option>
+                    <option value="replaced">נקנה</option>
+                    <option value="good">תקין</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">Notes</label>
+                <label className="text-xs font-bold text-slate-700">הערות</label>
                 <textarea
                   rows={2}
-                  placeholder="e.g. Current shoes are pinching toes..."
+                  placeholder="לדוגמה: הנעליים הקודמות לוחצות באצבעות..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -347,15 +348,15 @@ export const InventoryTracker: React.FC<InventoryTrackerProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700"
                 >
-                  Cancel
+                  ביטול
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-amber-700"
                 >
-                  Save Need
+                  שמור
                 </button>
               </div>
             </form>

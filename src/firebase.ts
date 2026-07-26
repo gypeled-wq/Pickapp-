@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, doc, getDocFromServer } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCRpaEvBjBiSGBSBJD5vVt8r4L-6dwAdZY",
@@ -14,3 +14,15 @@ const app = initializeApp(firebaseConfig);
 
 // use the custom firestore databaseId from the applet configuration
 export const db = getFirestore(app, "ai-studio-d4859a5f-0244-4003-9184-ca91b374587f");
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, "test", "connection"));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("the client is offline")) {
+      console.warn("Firestore client operating in offline mode.");
+    }
+  }
+}
+testConnection();
+

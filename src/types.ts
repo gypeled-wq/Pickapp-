@@ -176,14 +176,14 @@ export const DEFAULT_DRIVERS: DriverProfile[] = [
 export const DEFAULT_PARENTS: ParentProfile[] = [
   {
     id: "parent1",
-    name: "Mom (Sarah)",
+    name: "אמא (שרה)",
     role: "Mom",
     color: "bg-rose-500 text-white border-rose-600",
     avatarUrl: "👩‍👧",
   },
   {
     id: "parent2",
-    name: "Dad (David)",
+    name: "אבא (דוד)",
     role: "Dad",
     color: "bg-indigo-500 text-white border-indigo-600",
     avatarUrl: "👨‍👦",
@@ -193,17 +193,17 @@ export const DEFAULT_PARENTS: ParentProfile[] = [
 export const DEFAULT_CHILDREN: Child[] = [
   {
     id: "child1",
-    name: "Emma",
+    name: "אמה",
     avatar: "👧",
-    notes: "Allergic to peanuts. Soccer practice on Tue & Thu.",
+    notes: "אלרגית לבוטנים. אימון כדורגל בימי שלישי וחמישי.",
     clothingSize: "8-9Y",
     shoeSize: "33 EU",
   },
   {
     id: "child2",
-    name: "Noah",
+    name: "נועם",
     avatar: "👦",
-    notes: "Takes Asthma inhaler before sports. Violin on Wed.",
+    notes: "משאף ונטולין לפני ספורט. שיעור כינור ברביעי.",
     clothingSize: "6Y",
     shoeSize: "30 EU",
   },

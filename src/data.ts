@@ -542,6 +542,19 @@ export const StorageEngine = {
     return currentParents;
   },
 
+  addChild(child: Omit<Child, "id">): Child {
+    const newChild: Child = {
+      ...child,
+      id: "child_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+    };
+    currentChildren.push(newChild);
+    saveData(KEYS.CHILDREN, currentChildren);
+    notifyAll();
+    setDoc(doc(db, "children", newChild.id), cleanForFirestore(newChild));
+    this.addLog("Child Added", `Added child ${newChild.name}`);
+    return newChild;
+  },
+
   updateChild(child: Child) {
     const idx = currentChildren.findIndex((c) => c.id === child.id);
     if (idx !== -1) {
@@ -549,6 +562,25 @@ export const StorageEngine = {
       saveData(KEYS.CHILDREN, currentChildren);
       notifyAll();
       setDoc(doc(db, "children", child.id), cleanForFirestore(child));
+      this.addLog("Child Updated", `Updated child profile for ${child.name}`);
+    }
+  },
+
+  deleteChild(id: string) {
+    currentChildren = currentChildren.filter((c) => c.id !== id);
+    saveData(KEYS.CHILDREN, currentChildren);
+    notifyAll();
+    deleteDoc(doc(db, "children", id));
+  },
+
+  updateParent(parent: ParentProfile) {
+    const idx = currentParents.findIndex((p) => p.id === parent.id);
+    if (idx !== -1) {
+      currentParents[idx] = parent;
+      saveData(KEYS.PARENTS, currentParents);
+      notifyAll();
+      setDoc(doc(db, "parents", parent.id), cleanForFirestore(parent));
+      this.addLog("Parent Updated", `Updated parent profile for ${parent.name}`);
     }
   },
 
@@ -857,6 +889,17 @@ export const StorageEngine = {
     setDoc(doc(db, "drivers", newDriver.id), cleanForFirestore(newDriver));
     this.addLog("Driver Added", `Added driver ${newDriver.name} (${newDriver.relation})`);
     return newDriver;
+  },
+
+  updateDriver(driver: DriverProfile) {
+    const idx = currentDrivers.findIndex((d) => d.id === driver.id);
+    if (idx !== -1) {
+      currentDrivers[idx] = driver;
+      saveData(KEYS.DRIVERS, currentDrivers);
+      notifyAll();
+      setDoc(doc(db, "drivers", driver.id), cleanForFirestore(driver));
+      this.addLog("Driver Updated", `Updated driver ${driver.name}`);
+    }
   },
 
   deleteDriver(id: string) {

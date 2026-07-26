@@ -10,6 +10,7 @@ import { InventoryTracker } from "./components/InventoryTracker";
 import { CoParentChat } from "./components/CoParentChat";
 import { AiInputModal } from "./components/AiInputModal";
 import { PinModal } from "./components/PinModal";
+import { AdminView } from "./components/AdminView";
 import { StorageEngine, subscribeToStore } from "./data";
 import {
   ParentProfile,
@@ -26,10 +27,10 @@ import {
   DriverProfile,
   DriverPickupTask,
 } from "./types";
-import { Calendar, Car, Sparkles, Package, Pill, DollarSign, ShoppingBag, MessageSquare, Lock } from "lucide-react";
+import { Calendar, Car, Sparkles, Package, Pill, DollarSign, ShoppingBag, MessageSquare, ShieldCheck } from "lucide-react";
 
 export default function App() {
-  type TabType = "schedule" | "drivers" | "kids" | "packing" | "medications" | "expenses" | "inventory" | "chat";
+  type TabType = "schedule" | "drivers" | "kids" | "packing" | "medications" | "expenses" | "inventory" | "chat" | "admin";
 
   const [activeTab, setActiveTab] = useState<TabType>("schedule");
   const [activeParentId, setActiveParentId] = useState<string>("parent1"); // default to Mom
@@ -213,6 +214,14 @@ export default function App() {
             activeParentId={activeParentId}
           />
         )}
+
+        {activeTab === "admin" && (
+          <AdminView
+            childrenList={childrenList}
+            parents={parents}
+            drivers={drivers}
+          />
+        )}
       </main>
 
       {/* AI Natural Language Processing Modal */}
@@ -347,6 +356,19 @@ export default function App() {
           >
             <MessageSquare className="w-5 h-5" />
             <span className="text-[10px]">צ'אט</span>
+          </button>
+
+          {/* Admin */}
+          <button
+            onClick={() => handleTabClick("admin")}
+            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-2xl transition-all ${
+              activeTab === "admin"
+                ? "text-indigo-950 font-bold scale-105"
+                : "text-slate-400 hover:text-slate-600 font-medium"
+            }`}
+          >
+            <ShieldCheck className="w-5 h-5 text-indigo-700" />
+            <span className="text-[10px] font-bold text-indigo-900">אדמין</span>
           </button>
         </div>
       </nav>
