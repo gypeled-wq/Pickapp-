@@ -1,465 +1,293 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import React, { useState } from "react";
+import { Child, CustodySchedule, TaskOrPickup, PackingItem, ParentProfile, DriverProfile, DriverPickupTask } from "../types";
+import { StorageEngine } from "../data";
+import { Home, Sparkles, CheckCircle2, Circle, Clock, Heart, Lock, Calendar, Star, Sun, BellRing, MapPin } from "lucide-react";
 
-import { useState, useEffect, FormEvent } from "react";
-import { Pickup, Driver, DAYS_OF_WEEK, DEFAULT_CHILDREN, isPickupLessThan12HoursAway } from "../types";
-import { StorageEngine, subscribeToStore } from "../data";
-import { Calendar, Clock, Smile, Car, ShieldAlert, CheckCircle2, Compass, User, AlertCircle } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+interface KidsViewProps {
+  childrenList: Child[];
+  parents: ParentProfile[];
+  schedules: CustodySchedule[];
+  tasks: TaskOrPickup[];
+  packingItems: PackingItem[];
+  drivers: DriverProfile[];
+  driverTasks: DriverPickupTask[];
+  onLockKidsMode: () => void;
+  isLockedInKidsMode?: boolean;
+}
 
-export default function KidsView() {
-  const [pickups, setPickups] = useState<Pickup[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [activeKid, setActiveKid] = useState("יובל");
+export const KidsView: React.FC<KidsViewProps> = ({
+  childrenList,
+  parents,
+  schedules,
+  tasks,
+  packingItems,
+  drivers,
+  driverTasks,
+  onLockKidsMode,
+  isLockedInKidsMode,
+}) => {
+  const [selectedChildId, setSelectedChildId] = useState<string>(childrenList[0]?.id || "child1");
+  const [stars, setStars] = useState<number>(3);
+  const [starredToday, setStarredToday] = useState(false);
 
-  // מודאל בקשת איסוף מילד
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [reqDay, setReqDay] = useState("ראשון");
-  const [reqTime, setReqTime] = useState("13:30");
-  const [reqNotes, setReqNotes] = useState("");
-  const [reqBabysitter, setReqBabysitter] = useState<"none" | "babysitter_only" | "both">("none");
+  const selectedChild = childrenList.find((c) => c.id === selectedChildId) || childrenList[0];
+  const todayStr = new Date().toISOString().split("T")[0];
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split("T")[0];
 
-  // מציאת היום הנוכחי (או הדמיה של היום לפי זמן המערכת הנוכחי)
-  const getCurrentHebrewDay = (): string => {
-    const days = ["ראשון", "ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "ראשון"];
-    const dayIndex = new Date().getDay(); // 0 is Sunday
-    return days[dayIndex];
-  };
+  // Schedules
+  const todaySchedule = schedules.find((s) => s.date === todayStr) || { primaryParentId: "parent1" };
+  const tomorrowSchedule = schedules.find((s) => s.date === tomorrowStr) || { primaryParentId: "parent2" };
 
-  const [simulatedDay, setSimulatedDay] = useState(getCurrentHebrewDay());
+  const todayParent = parents.find((p) => p.id === todaySchedule.primaryParentId) || parents[0];
+  const tomorrowParent = parents.find((p) => p.id === tomorrowSchedule.primaryParentId) || parents[1];
 
-  useEffect(() => {
-    setPickups(StorageEngine.getPickups());
-    setDrivers(StorageEngine.getDrivers());
+  // Today's Pickup person for this child
+  // Check driver tasks first, then parent tasks
+  const todayDriverTask = driverTasks.find(
+    (dt) => dt.date === todayStr && (dt.childId === selectedChildId || dt.childId === "all") && !dt.completed
+  );
 
-    const unsubscribe = subscribeToStore(() => {
-      setPickups(StorageEngine.getPickups());
-      setDrivers(StorageEngine.getDrivers());
-    });
-    return unsubscribe;
-  }, []);
+  let pickupPersonName = todayParent?.name || "אמא / אבא";
+  let pickupPersonAvatar = todayParent?.avatarUrl || "👤";
+  let pickupTime = "סוף יום הלימודים (16:00)";
+  let pickupLocation = "שער המסגרת";
 
-  // סינון איסופים רק עבור הילד הפעיל
-  const kidPickups = pickups.filter((p) => p.childName === activeKid);
-
-  // האיסוף של היום הנוכחי מתוך הרשימה
-  const todaysPickup = kidPickups.find((p) => p.day === simulatedDay);
-  const driverForToday = todaysPickup ? drivers.find((d) => d.id === todaysPickup.driverId) : null;
-
-  const handleImInTheCar = (pickupId: string) => {
-    StorageEngine.togglePickupCompletion(pickupId);
-  };
-
-  const handleSaveRequest = (e: FormEvent) => {
-    e.preventDefault();
-    if (!reqNotes.trim()) {
-      alert("אנא כתבו מאיפה אתם צריכים איסוף (למשל: בית הספר, חוג כדורגל, מועדונית...)");
-      return;
+  if (todayDriverTask) {
+    const driver = drivers.find((d) => d.id === todayDriverTask.driverId);
+    if (driver) {
+      pickupPersonName = `${driver.name} (${driver.relation})`;
+      pickupPersonAvatar = driver.avatar;
+      pickupTime = todayDriverTask.time;
+      pickupLocation = todayDriverTask.location;
     }
-
-    // הוספת נסיעה ללא נהג משויך
-    StorageEngine.addPickup({
-      day: reqDay,
-      childName: activeKid,
-      time: reqTime,
-      driverId: "unassigned",
-      status: "regular",
-      notes: reqNotes.trim(),
-      completed: false,
-      babysitterType: reqBabysitter,
-    });
-
-    // הוספת לוג פעילות
-    StorageEngine.addLog(
-      "בקשת איסוף עצמאית מילד/ה",
-      `הילד/ה ${activeKid} שלח/ה בקשת איסוף עצמאית ליום ${reqDay} בשעה ${reqTime} מ: ${reqNotes}. סוג: ${
-        reqBabysitter === "babysitter_only" ? "בייביסיטר בלבד" : reqBabysitter === "both" ? "גם וגם" : "איסוף בלבד"
-      }`,
-      "child",
-      activeKid
+  } else {
+    // Check parent task
+    const parentTask = tasks.find(
+      (t) => t.date === todayStr && (t.childId === selectedChildId || t.childId === "all") && t.type === "pickup"
     );
+    if (parentTask) {
+      const respParent = parents.find((p) => p.id === parentTask.responsibleParentId);
+      if (respParent) {
+        pickupPersonName = respParent.name;
+        pickupPersonAvatar = respParent.avatarUrl;
+        pickupTime = parentTask.time;
+        pickupLocation = parentTask.location || pickupLocation;
+      }
+    }
+  }
 
-    // שליחת התראה דחופה להורים
-    StorageEngine.addAlert(
-      `בקשת איסוף חדשה מ${activeKid}!`,
-      `${activeKid} ביקש/ה איסוף ליום ${reqDay} בשעה ${reqTime} - מיקום: ${reqNotes}. נא לשייך מלווה בלו״ז.`,
-      "urgent"
-    );
+  // Gear / Packing for this child
+  const childPacking = packingItems.filter(
+    (p) => (p.childId === selectedChildId || p.childId === "all") && p.neededForDate === todayStr
+  );
 
-    setIsRequestModalOpen(false);
-    setReqNotes("");
-    setReqBabysitter("none");
+  const handleStarClick = () => {
+    if (!starredToday) {
+      setStars((prev) => prev + 1);
+      setStarredToday(true);
+    }
   };
 
   return (
-    <div className="space-y-6 text-right font-mono text-[#141414]" id="kids_view_panel">
-      {/* פאנל בחירת ילד/ה חביב */}
-      <div className="bg-[#E4E3E0] border-4 border-[#141414] p-6 shadow-[4px_4px_0_0_#141414] relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-4 flex-row-reverse font-mono">
-        <div className="relative space-y-2 text-center md:text-right">
-          <h2 className="text-2xl font-black flex items-center gap-2 justify-center md:justify-end flex-row-reverse">
-            <Smile className="hidden md:block w-8 h-8 text-black animate-bounce" />
-            <span className="hidden md:inline">היי חמודים! איפה אתם נמצאים?</span>
+    <div className="space-y-4 pb-24" dir="rtl">
+      {/* Header Banner for Kids */}
+      <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-pink-500 rounded-3xl p-5 text-white shadow-lg relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-2">
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/20 text-xs font-bold backdrop-blur-md">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              אזור הילדים והלו"ז היומי
+            </span>
+
+            <button
+              onClick={onLockKidsMode}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-bold transition-all shadow-xs ${
+                isLockedInKidsMode
+                  ? "bg-amber-400 text-slate-900 border border-amber-300"
+                  : "bg-white/20 hover:bg-white/30 text-white border border-white/30"
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              {isLockedInKidsMode ? "מצב נעול לילדים" : "נעול תצוגה לילדים"}
+            </button>
+          </div>
+
+          <h2 className="text-2xl font-black flex items-center gap-2">
+            <span>שלום {selectedChild?.name || "חמודים"}!</span>
+            <span className="text-3xl animate-bounce">🎈</span>
           </h2>
-          <p className="hidden md:block text-xs text-slate-700 font-bold">
-            מצב תצוגת ילדים נוח וברור ללא אפשרות לשנות בלו״ז. בחרו את השם שלכם:
+          <p className="text-xs opacity-90 mt-1">
+            כאן תוכלו לראות איפה ישנים הלילה, מי אוסף אתכם, ואיזה ציוד צריך להכין!
           </p>
-        </div>
 
-        {/* לחצני בחירה ענקיים לילדים */}
-        <div className="flex flex-row gap-2 relative select-none z-10 justify-center w-full md:w-auto">
-          {DEFAULT_CHILDREN.map((kid) => {
-            const isActive = activeKid === kid;
-            const emoji = kid === "בר" ? "👧" : kid === "יובל" ? "👦" : "👦";
-            return (
+          {/* Child Switcher Buttons */}
+          <div className="flex items-center gap-2 mt-4">
+            {childrenList.map((c) => (
               <button
-                key={kid}
-                onClick={() => setActiveKid(kid)}
-                className={`py-1.5 px-4 md:py-3 md:px-6 border-2 border-[#141414] text-xs md:text-sm font-black transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0 flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-1.5 min-w-[80px] md:min-w-0 ${
-                  isActive
-                    ? "bg-[#141414] text-white shadow-none"
-                    : "bg-white hover:bg-slate-100 text-[#141414]"
+                key={c.id}
+                onClick={() => setSelectedChildId(c.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all ${
+                  selectedChildId === c.id
+                    ? "bg-white text-purple-700 shadow-md scale-105"
+                    : "bg-purple-700/50 text-white hover:bg-purple-700/70"
                 }`}
               >
-                <span className="text-base md:text-sm order-first">{emoji}</span>
-                <span className="text-xs md:text-sm">{kid}</span>
+                <span className="text-base">{c.avatar}</span>
+                <span>{c.name}</span>
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* בקרי הדמיית ימים לטובת המשתמש */}
-      {/* דסקטופ בלבד */}
-      <div className="hidden md:flex flex-col md:flex-row justify-between items-center bg-white p-3 border-2 border-[#141414] text-xs flex-row-reverse text-[#141414] font-mono shadow-[2px_2px_0_0_#141414] gap-2">
-        <span className="font-bold border-r-4 border-[#141414] pr-2">סימולטור ימים לילדים:</span>
-        <div className="flex gap-1">
-          {DAYS_OF_WEEK.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSimulatedDay(day)}
-              className={`px-2.5 py-1 border transition-all cursor-pointer font-bold text-[11px] ${
-                simulatedDay === day
-                  ? "bg-[#141414] text-[#E4E3E0] border-[#141414]"
-                  : "bg-[#E4E3E0] hover:bg-slate-300 text-slate-800 border-[#141414]"
-              }`}
-            >
-              הצג יום {day}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* מובייל בלבד: טאבים ענקיים על ימים להדמיית ימים לילדים שלו */}
-      <div className="md:hidden grid grid-cols-7 gap-1 bg-[#D1D0CC] p-1.5 border-4 border-[#141414] w-full select-none text-center shadow-[4px_4px_0_0_#141414]" style={{ direction: "rtl" }}>
-        {DAYS_OF_WEEK.map((day) => {
-          const isSelected = simulatedDay === day;
-          const shortName = day === "ראשון" ? "א'" : day === "שני" ? "ב'" : day === "שלישי" ? "ג'" : day === "רביעי" ? "ד'" : day === "חמישי" ? "ה'" : day === "שישי" ? "ו'" : "שב'";
-          return (
-            <button
-              key={day}
-              onClick={() => setSimulatedDay(day)}
-              className={`py-5 px-1 text-center transition-all cursor-pointer font-black flex flex-col items-center justify-center border-2 border-[#141414] ${
-                isSelected
-                  ? "bg-[#141414] text-white"
-                  : "bg-white text-[#141414] hover:bg-slate-50"
-              }`}
-            >
-              <span className="text-base font-black leading-none">{shortName}</span>
-              <span className="text-[11px] font-black leading-none mt-1.5 block">{day}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* כרטיס קריאה מהירה לילדים שצריכים איסוף */}
-      <div className="bg-[#FFFCE8] border-4 border-[#141414] p-5 shadow-[4px_4px_0_0_#141414] flex flex-col sm:flex-row justify-between items-center gap-4 text-right">
-        <div>
-          <h4 className="text-base font-black text-amber-955 flex items-center gap-1.5 flex-row-reverse">
-            <span>🙋‍♂️ צריך איסוף ממועדונית או מהחוג השבוע?</span>
-          </h4>
-          <p className="hidden sm:block text-xs text-amber-900 mt-1 font-bold">
-            אם יש לכם חוג או פעילות וצריך שמישהו יבוא לאסוף אתכם, לחצו על הכפתור ועדכנו את ההורים מיד!
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            setReqDay(simulatedDay);
-            setReqTime("13:30");
-            setReqNotes("");
-            setReqBabysitter("none");
-            setIsRequestModalOpen(true);
-          }}
-          className="w-full sm:w-auto px-6 py-3.5 border-2 border-[#141414] bg-amber-400 hover:bg-amber-300 font-extrabold text-sm transition-all shadow-[2px_2px_0_0_#141414] hover:shadow-none active:translate-y-0.5 animate-pulse cursor-pointer flex items-center justify-center gap-1.5 flex-row-reverse text-amber-950"
-        >
-          <span>אני צריך איסוף! 🖐</span>
-        </button>
-      </div>
-
-      {/* מדור האיסוף העיקרי של היום */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* כרטיס ראשי: מי אוסף אותי ומתי היום */}
-        <div 
-          className={`lg:col-span-2 bg-white p-6 flex flex-col justify-between space-y-6 ${
-            todaysPickup && isPickupLessThan12HoursAway(todaysPickup.day, todaysPickup.time, todaysPickup.driverId)
-              ? "border-4 border-red-600 ring-4 ring-red-300 ring-offset-1" 
-              : "card-border shadow-flat"
-          }`} 
-          id="kids_today_card"
-        >
-          <div>
-            <div className="flex justify-between items-center mb-4 flex-row-reverse">
-              <span className="bg-[#141414] text-white text-xs px-3 py-1 font-bold">
-                איסוף מתוכנן להיום (יום {simulatedDay})
-              </span>
-              <span className="hidden sm:flex items-center gap-1 text-slate-500 text-xs flex-row-reverse font-bold">
-                <Calendar className="w-4 h-4" />
-                <span>עידכון חי / LIVE LOCK</span>
-              </span>
-            </div>
-
-            {todaysPickup ? (
-              <div className="space-y-6">
-                {/* הודעה גדולה ומזמינה */}
-                <div className="space-y-2">
-                  <h3 className="text-xl md:text-2xl font-black text-[#141414] leading-snug">
-                    היי {activeKid}, היום יום {simulatedDay} ויאסוף אותך:
-                  </h3>
-                  <div className="flex items-center gap-3 mt-4 justify-start flex-row-reverse">
-                    <div className="hidden sm:block bg-[#E4E3E0] p-3 border-2 border-[#141414] text-[#141414]">
-                      <Clock className="w-8 h-8 font-bold animate-pulse" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 font-bold">בדיוק בשעה שנקבעה:</p>
-                      <p className="text-3xl font-black text-[#141414] font-mono tracking-wider">{todaysPickup.endTime ? `${todaysPickup.time} - ${todaysPickup.endTime}` : todaysPickup.time}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* פרטי הנהג והרכב בעיניים מותאמות לילדים */}
-                <div className="bg-[#E4E3E0] p-5 border-2 border-[#141414] space-y-4">
-                  <div className="flex items-center gap-3.5 flex-row-reverse text-right">
-                    <div className="bg-[#141414] text-white p-3 border border-black">
-                      <Car className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 font-bold">הנהג/ת המלווה:</p>
-                      <p className="text-lg font-black text-black">{driverForToday ? driverForToday.name : "רכב לא ידוע"}</p>
-                    </div>
-                  </div>
-
-                  {driverForToday?.vehicleInfo && (
-                    <div className="pt-2 border-t-2 border-[#141414] text-right">
-                      <p className="text-xs text-slate-500 font-bold">סימני זיהוי של הרכב:</p>
-                      <p className="text-sm font-bold text-black bg-white border border-[#141414] p-2.5 mt-1 inline-block">
-                        🚗 {driverForToday.vehicleInfo}
-                      </p>
-                    </div>
-                  )}
-
-                  {todaysPickup.notes && (
-                    <div className="pt-2 border-t-2 border-[#141414]">
-                      <p className="text-xs text-red-600 font-bold">הודעה חשובה מההורים / DISPATCH FEED:</p>
-                      <p className="text-sm font-semibold text-slate-800 bg-white p-3 border border-[#141414] mt-1">
-                        📢 &quot;{todaysPickup.notes}&quot;
-                      </p>
-                    </div>
-                  )}
-
-                  {todaysPickup.status === "urgent" && (
-                    <div className="flex items-center gap-2 bg-red-600 text-white p-3 border-2 border-[#141414] text-xs flex-row-reverse mt-2">
-                      <ShieldAlert className="w-4 h-4 animate-bounce shrink-0" />
-                      <strong>שינוי דחוף של הרגע האחרון! שימו לב לשעה ולמלווה.</strong>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="py-12 text-center text-slate-500 border-2 border-dashed border-[#141414] bg-[#E4E3E0] flex flex-col items-center justify-center gap-3">
-                <p className="text-6xl">🍿</p>
-                <p className="text-lg font-black text-[#141414]">יאיי! אין איסוף רשום עבורך היום.</p>
-                <p className="text-xs">ההורים כנראה אוספים אתכם בעצמם או שאין חוג היום.</p>
-              </div>
-            )}
+      {/* Main Status Cards for Kids */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        {/* Card 1: Where am I sleeping tonight? */}
+        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-3xl p-5 border border-indigo-100 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-extrabold text-indigo-700 bg-indigo-100/80 px-3 py-1 rounded-full flex items-center gap-1.5">
+              <Home className="w-3.5 h-3.5 text-indigo-600" />
+              איפה ישנים הלילה?
+            </span>
+            <span className="text-2xl">🌙</span>
           </div>
 
-          {/* מקש דיווח מהיר: אני ברכב (completed) */}
-          {todaysPickup && (
-            <div className="mt-6 pt-4 border-t-2 border-[#141414] flex flex-col sm:flex-row gap-4 justify-between items-center flex-row-reverse">
-              <div className="text-right">
-                <p className="hidden sm:block text-xs text-slate-500 font-bold">גע/י כאן ברגע שאת/ה נכנס/ת למכונית:</p>
-              </div>
-              <button
-                onClick={() => handleImInTheCar(todaysPickup.id)}
-                className={`w-full sm:w-auto px-8 py-4 border-2 border-[#141414] font-black text-base cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 flex-row-reverse transition-all ${
-                  todaysPickup.completed
-                    ? "bg-[#D1D0CC] text-[#141414]"
-                    : "bg-emerald-600 hover:bg-[#141414] text-white shadow-[3px_3px_0_0_#141414] hover:shadow-none"
-                }`}
-                id="btn_kids_confirm_pickup"
-              >
-                {todaysPickup.completed ? (
-                  <>
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span>דיווחת בהצלחה: אני ברכב!</span>
-                  </>
-                ) : (
-                  <>
-                    <span>נכנסתי לרכב! 🚗 JOIN CAR</span>
-                  </>
-                )}
-              </button>
+          <div className="flex items-center gap-4 bg-white/80 p-3.5 rounded-2xl border border-indigo-100/60 shadow-2xs">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500 text-white flex items-center justify-center text-3xl shadow-sm shrink-0">
+              {todayParent?.avatarUrl || "🏠"}
             </div>
-          )}
+            <div>
+              <p className="text-xs font-medium text-slate-500">הלילה ישנים בבית של:</p>
+              <h3 className="text-lg font-black text-indigo-950 mt-0.5">
+                {todayParent?.name || "בית אמא / אבא"}
+              </h3>
+              <p className="text-[11px] text-indigo-600 font-semibold mt-0.5 flex items-center gap-1">
+                <Heart className="w-3 h-3 text-pink-500 fill-pink-500" />
+                מחר עוברים ל: {tomorrowParent?.name || "בית שני"}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* לוח השבוע של הילד שנבחר */}
-        <div className="bg-[#E4E3E0] p-6 border-4 border-[#141414] shadow-[4px_4px_0_0_#141414] text-right font-mono" id="kids_weekly_timeline">
-          <h3 className="text-base font-extrabold text-[#141414] mb-4 flex items-center gap-1.5 flex-row-reverse border-b-2 border-[#141414] pb-2 uppercase italic">
-            <Compass className="w-5 h-5" />
-            <span>כל איסוּפי השבוע / WEEKLY TIMELINE</span>
+        {/* Card 2: Who is picking me up today? */}
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-5 border border-amber-100 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-extrabold text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full flex items-center gap-1.5">
+              <Sun className="w-3.5 h-3.5 text-amber-600" />
+              מי אוסף אותי היום?
+            </span>
+            <span className="text-2xl">🚗</span>
+          </div>
+
+          <div className="flex items-center gap-4 bg-white/80 p-3.5 rounded-2xl border border-amber-100/60 shadow-2xs">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-3xl shadow-sm shrink-0">
+              {pickupPersonAvatar}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">נאסף בסוף היום על ידי:</p>
+              <h3 className="text-base font-black text-amber-950 mt-0.5">{pickupPersonName}</h3>
+              <div className="flex items-center gap-2 mt-1 text-[11px] text-amber-800 font-bold">
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-600" />
+                  {pickupTime}
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-amber-600" />
+                  {pickupLocation}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 3: What to pack / Gear checklist for today */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+            <BellRing className="w-4 h-4 text-purple-600" />
+            מה מכינים בתיק להיום? ({selectedChild?.name})
           </h3>
-
-          <div className="space-y-3.5 max-h-[400px] overflow-y-auto pr-1">
-            {DAYS_OF_WEEK.map((day) => {
-              const dayPickup = kidPickups.find((p) => p.day === day);
-              const dayDriver = dayPickup ? drivers.find((d) => d.id === dayPickup.driverId) : null;
-              const isUrgentUnassigned = dayPickup ? isPickupLessThan12HoursAway(dayPickup.day, dayPickup.time, dayPickup.driverId) : false;
-
-              return (
-                <div
-                  key={day}
-                  className={`p-3 flex flex-col gap-1 transition-colors ${
-                    isUrgentUnassigned
-                      ? "border-4 border-red-600 bg-red-50/25"
-                      : simulatedDay === day
-                      ? "bg-white border-[#141414] border-2 shadow-[2px_2px_0_0_#141414]"
-                      : dayPickup?.completed
-                      ? "bg-[#D1D0CC] border-slate-400 text-slate-600 line-through border-2"
-                      : "bg-[#F3F2EE] border-[#141414] border-2"
-                  }`}
-                >
-                  <div className="flex justify-between items-center flex-row-reverse">
-                    <span className="font-bold text-[#141414] text-xs">יום {day}</span>
-                    {dayPickup ? (
-                      <span className="text-xs font-mono font-black text-[#141414] bg-[#E4E3E0] border border-[#141414] px-1.5 py-0.5">
-                        {dayPickup.endTime ? `${dayPickup.time} - ${dayPickup.endTime}` : dayPickup.time}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-500 italic">אין הסעה</span>
-                    )}
-                  </div>
-
-                  {dayPickup && (
-                    <div className="text-xs mt-1 space-y-0.5 text-slate-700 leading-relaxed">
-                      <p className="flex items-center gap-1 justify-end flex-row-reverse font-bold">
-                        <User className="w-3.5 h-3.5" />
-                        <span>מלווה: {dayDriver ? dayDriver.name : "רכב לא ידוע"}</span>
-                      </p>
-                      {dayPickup.notes && (
-                        <p className="text-[11px] text-slate-600 truncate text-right">
-                          &quot;{dayPickup.notes}&quot;
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">
+            {childPacking.filter((p) => p.isPacked).length} מתוך {childPacking.length} מוכנים
+          </span>
         </div>
-      </div>
 
-      {/* מודאל בקשת איסוף עצמאית לילד/ה */}
-      <AnimatePresence>
-        {isRequestModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ direction: "rtl" }}>
-            <div className="fixed inset-0 bg-[#141414]/85" onClick={() => setIsRequestModalOpen(false)} />
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#E4E3E0] border-4 border-[#141414] p-6 max-w-md w-full tech-shadow z-10 text-right overflow-y-auto max-h-[90vh] text-[#141414] font-mono"
-              id="kids_pickup_request_modal"
-            >
-              <div className="flex items-center gap-2 border-b-2 border-[#141414] pb-2 mb-4 justify-start flex-row">
-                <AlertCircle className="w-5 h-5 text-amber-600 animate-bounce" />
-                <h3 className="font-extrabold text-[#141414] text-base uppercase">
-                  בקשת איסוף חדשה עבור מלווים / הורים
-                </h3>
+        {childPacking.length === 0 ? (
+          <div className="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-4 text-center space-y-1">
+            <span className="text-2xl">🌟</span>
+            <p className="text-xs font-bold text-emerald-800">הכול מוכן בתיק להיום!</p>
+            <p className="text-[11px] text-emerald-600">אין פריטים מיוחדים שצריך לארוז היום.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {childPacking.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => StorageEngine.togglePackingItem(item.id)}
+                className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                  item.isPacked
+                    ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+                    : "bg-slate-50 border-slate-100 hover:border-purple-200 text-slate-800"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <button className="text-slate-400">
+                    {item.isPacked ? (
+                      <CheckCircle2 className="w-6 h-6 text-emerald-500 fill-emerald-100" />
+                    ) : (
+                      <Circle className="w-6 h-6 text-slate-300" />
+                    )}
+                  </button>
+                  <span className={`text-sm font-bold ${item.isPacked ? "line-through opacity-70" : ""}`}>
+                    {item.title}
+                  </span>
+                </div>
+
+                <span className="text-xs bg-white px-2.5 py-1 rounded-xl shadow-2xs font-semibold text-slate-600">
+                  {item.category === "sports"
+                    ? "⚽ ספורט"
+                    : item.category === "instrument"
+                    ? "🎻 מוזיקה"
+                    : item.category === "school"
+                    ? "📚 לימודים"
+                    : "🎒 ציוד"}
+                </span>
               </div>
-
-              <form onSubmit={handleSaveRequest} className="space-y-4">
-                <div className="bg-white p-3 border border-[#141414] space-y-1 text-xs">
-                  <p className="font-bold">היי {activeKid}! 🥰</p>
-                  <p className="text-slate-650">בלחיצה כאן תשלח התראה דחופה מיידית להורים ולמלווים.</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-800">איזה יום?</label>
-                    <select
-                      value={reqDay}
-                      onChange={(e) => setReqDay(e.target.value)}
-                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-right cursor-pointer focus:outline-none"
-                    >
-                      {DAYS_OF_WEEK.map((d) => (
-                        <option key={d} value={d}>
-                          יום {d}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-800">באיזו שעה?</label>
-                    <input
-                      type="time"
-                      required
-                      value={reqTime}
-                      onChange={(e) => setReqTime(e.target.value)}
-                      className="w-full text-xs px-2.5 py-2 border-2 border-[#141414] bg-white text-left font-mono focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800 block">מאיזה מקום או חוג? (למשל: חוג כדורגל, מועדונית, גבעת סומסום)</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={130}
-                    placeholder="אנא פרטו היכן לחכות לכם..."
-                    value={reqNotes}
-                    onChange={(e) => setReqNotes(e.target.value)}
-                    className="w-full text-xs p-3 border-2 border-[#141414] bg-white text-right focus:outline-none"
-                  />
-                </div>
-
-
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsRequestModalOpen(false)}
-                    className="px-3.5 py-2 border-2 border-[#141414] bg-[#D1D0CC] text-black text-xs font-bold cursor-pointer hover:bg-slate-300"
-                  >
-                    ביטול / CANCEL
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 border-2 border-[#141414] bg-amber-400 text-black hover:bg-black hover:text-white font-black text-xs cursor-pointer shadow-[2px_2px_0_0_#141414]"
-                    id="btn_submit_kids_req"
-                  >
-                    שלח בקשה להורים! 🚀
-                  </button>
-                </div>
-              </form>
-            </motion.div>
+            ))}
           </div>
         )}
-      </AnimatePresence>
+      </div>
+
+      {/* Daily Star Sticker Reward Widget */}
+      <div className="bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400 rounded-3xl p-4 text-white shadow-md flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl shadow-xs">
+            ⭐
+          </div>
+          <div>
+            <h4 className="text-sm font-extrabold">כוכב יומי למערכת!</h4>
+            <p className="text-xs opacity-90">מוכנים ליום מוצלח? לחצו לקבלת כוכב</p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleStarClick}
+          disabled={starredToday}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 ${
+            starredToday
+              ? "bg-white/30 text-white cursor-default"
+              : "bg-white text-orange-600 hover:bg-orange-50 active:scale-95"
+          }`}
+        >
+          <Star className="w-4 h-4 fill-amber-300 text-amber-400" />
+          <span>{starredToday ? "אספת כוכב!" : "קבל כוכב"}</span>
+          <span className="bg-orange-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+            {stars}
+          </span>
+        </button>
+      </div>
     </div>
   );
-}
+};

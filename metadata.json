@@ -1,6 +1,6 @@
 {
-  "name": "ניהול הסעות ילדים",
-  "description": "מערכת מרכזית להסדרת מערך איסוף הילדים, ניהול לו״ז שבועי לפי 3 ילדים, ספריית נהגים קבועים ומזדמנים, וממשקים להורים, ילדים ונהגים.",
-  "requestFramePermissions": [],
+  "name": "Co-Parenting & Family Logistics",
+  "description": "Streamlining custody schedules, packing checklists, medication tracking, shared expense splitting, kids inventory, and AI natural language parsing for co-parents.",
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
