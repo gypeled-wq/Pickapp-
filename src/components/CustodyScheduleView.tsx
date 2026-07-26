@@ -596,7 +596,7 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
             <div className="grid grid-cols-7 gap-1.5 text-xs">
               {/* Padding empty slots for month start */}
               {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
-                <div key={`pad-${idx}`} className="h-20 bg-slate-50/50 rounded-xl border border-dashed border-slate-100" />
+                <div key={`pad-${idx}`} className="h-24 bg-slate-50/50 rounded-xl border border-dashed border-slate-100" />
               ))}
 
               {/* Days 1 to daysInMonth */}
@@ -612,16 +612,17 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                 const daySched = schedules.find((s) => s.date === dateKey);
                 const isMomCustody = daySched?.primaryParentId === "parent1";
 
-                // Tasks for this date
+                // Tasks & Drivers for this date
                 const dayTasks = tasks.filter((t) => t.date === dateKey);
-                const momTasksCount = dayTasks.filter((t) => t.responsibleParentId === "parent1").length;
-                const dadTasksCount = dayTasks.filter((t) => t.responsibleParentId === "parent2").length;
+                const dateDriverTasks = driverTasks.filter((dt) => dt.date === dateKey);
+                const firstDriverTask = dateDriverTasks[0];
+                const assignedDriver = firstDriverTask ? drivers.find((d) => d.id === firstDriverTask.driverId) : null;
 
                 return (
                   <div
                     key={dateKey}
                     onClick={() => setSelectedDate(dateKey)}
-                    className={`h-22 p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+                    className={`min-h-24 p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group ${
                       isSelected
                         ? "ring-2 ring-indigo-600 ring-offset-1 border-indigo-500 shadow-md scale-[1.02]"
                         : isToday
@@ -633,54 +634,92 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                         : "bg-indigo-50/40 hover:bg-indigo-50/80"
                     }`}
                   >
-                    {/* Top Row: Day Number & Custody Badge */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`w-6 h-6 rounded-full font-black text-xs flex items-center justify-center ${
-                          isToday
-                            ? "bg-amber-500 text-white shadow-2xs"
-                            : isSelected
-                            ? "bg-indigo-600 text-white"
-                            : "text-slate-800"
-                        }`}
-                      >
-                        {dayNum}
-                      </span>
+                    {/* Top Row: Day Number & Custody Badge & Quick Driver Assign */}
+                    <div className="flex items-center justify-between gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <span
+                          className={`w-5 h-5 rounded-full font-black text-[11px] flex items-center justify-center ${
+                            isToday
+                              ? "bg-amber-500 text-white shadow-2xs"
+                              : isSelected
+                              ? "bg-indigo-600 text-white"
+                              : "text-slate-800"
+                          }`}
+                        >
+                          {dayNum}
+                        </span>
 
-                      <span
-                        className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full ${
-                          isMomCustody
-                            ? "bg-rose-200 text-rose-900"
-                            : "bg-indigo-200 text-indigo-900"
-                        }`}
-                        title={isMomCustody ? "משמורת אמא (שרה)" : "משמורת אבא (דוד)"}
+                        <span
+                          className={`text-[8px] font-extrabold px-1 py-0.2 rounded-full ${
+                            isMomCustody
+                              ? "bg-rose-200 text-rose-900"
+                              : "bg-indigo-200 text-indigo-900"
+                          }`}
+                          title={isMomCustody ? "משמורת אמא (שרה)" : "משמורת אבא (דוד)"}
+                        >
+                          {isMomCustody ? "אמא" : "אבא"}
+                        </span>
+                      </div>
+
+                      {/* Quick Driver Assign Button on Day Cell */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDate(dateKey);
+                          setDpDriverId(drivers[0]?.id || "unassigned");
+                          setDpLocation("שער בית הספר / הגן");
+                          setDpDestination("בית / חוג");
+                          setShowDriverPickupModal(true);
+                        }}
+                        className="p-1 rounded-lg bg-orange-100 hover:bg-orange-500 text-orange-700 hover:text-white transition-all text-[9px] font-bold flex items-center gap-0.5 shadow-2xs active:scale-95"
+                        title="שבץ נהג ממאגר הנהגים ליום זה"
                       >
-                        {isMomCustody ? "אמא" : "אבא"}
-                      </span>
+                        <Car className="w-2.5 h-2.5" />
+                        <span>+</span>
+                      </button>
                     </div>
+
+                    {/* Driver Pickup Badge on Day Cell */}
+                    {firstDriverTask && (
+                      <div className="mt-1">
+                        <span
+                          className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md truncate flex items-center gap-1 border ${
+                            assignedDriver
+                              ? "bg-orange-500 text-white border-orange-600 shadow-2xs"
+                              : "bg-rose-500 text-white border-rose-600 animate-pulse"
+                          }`}
+                          title={assignedDriver ? `נהג: ${assignedDriver.name}` : "טרם שובץ נהג"}
+                        >
+                          <Car className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate">
+                            {assignedDriver ? `${assignedDriver.avatar} ${assignedDriver.name}` : "ללא נהג"}
+                          </span>
+                        </span>
+                      </div>
+                    )}
 
                     {/* Task Indicators for Mom and Dad */}
                     <div className="space-y-0.5 mt-1 overflow-hidden">
-                      {dayTasks.slice(0, 2).map((t) => {
+                      {dayTasks.slice(0, 1).map((t) => {
                         const isMomTask = t.responsibleParentId === "parent1";
                         return (
                           <div
                             key={t.id}
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md truncate flex items-center gap-1 border ${
+                            className={`text-[8px] font-bold px-1 py-0.5 rounded-md truncate flex items-center gap-1 border ${
                               isMomTask
-                                ? "bg-rose-500 text-white border-rose-600 shadow-2xs"
-                                : "bg-indigo-600 text-white border-indigo-700 shadow-2xs"
+                                ? "bg-rose-100 text-rose-900 border-rose-200"
+                                : "bg-indigo-100 text-indigo-900 border-indigo-200"
                             }`}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                            <span className="w-1 h-1 rounded-full bg-slate-700 shrink-0" />
                             <span className="truncate">{t.title}</span>
                           </div>
                         );
                       })}
 
-                      {dayTasks.length > 2 && (
+                      {dayTasks.length > 1 && (
                         <p className="text-[8px] font-extrabold text-slate-500 text-center">
-                          +{dayTasks.length - 2} נוספים
+                          +{dayTasks.length - 1} נוספים
                         </p>
                       )}
                     </div>
@@ -982,100 +1021,178 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
 
       {/* Add Driver Pickup Task Modal */}
       {showDriverPickupModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-xl space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto" dir="rtl">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-xl space-y-4 my-auto">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
-                <span>🚘</span>
-                <span>הגדרת איסוף חדש לנהג/מסיע</span>
-              </h3>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+                  <span>🚘</span>
+                  <span>שיבוץ נהג ממאגר הנהגים ({selectedDate})</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  בחר נהג ממאגר הנהגים המאושרים והגדר פרטי נסיעה להסעת היום
+                </p>
+              </div>
               <button
                 onClick={() => setShowDriverPickupModal(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold"
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 rounded-lg hover:bg-slate-100"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateDriverTask} className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700">שיוך לילד</label>
-                <select
-                  value={dpChildId}
-                  onChange={(e) => setDpChildId(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
-                >
-                  <option value="all">👧👦 כל הילדים</option>
-                  {childrenList.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.avatar} {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700">נהג/מסיע משובץ</label>
-                <select
-                  value={dpDriverId}
-                  onChange={(e) => setDpDriverId(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
-                >
-                  <option value="unassigned">⚠️ פתוח לכל נהג פנוי (טרם שובץ)</option>
-                  {drivers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.avatar} {d.name} ({d.relation})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Quick Driver Selection Cards from Library */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>בחר נהג ממאגר הנהגים:</span>
+                <span className="text-[10px] text-orange-600 font-normal">לחץ לבחירה מהירה</span>
+              </label>
 
               <div className="grid grid-cols-2 gap-2">
+                {drivers.map((d) => {
+                  const isSelected = dpDriverId === d.id;
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setDpDriverId(d.id)}
+                      className={`p-2 rounded-2xl border text-right transition-all flex items-center gap-2 ${
+                        isSelected
+                          ? "bg-orange-500 text-white border-orange-600 shadow-xs ring-2 ring-orange-300"
+                          : "bg-slate-50 hover:bg-orange-50/60 border-slate-200 text-slate-800"
+                      }`}
+                    >
+                      <span className="text-xl shrink-0">{d.avatar}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-xs truncate">{d.name}</p>
+                        <p className={`text-[10px] truncate ${isSelected ? "text-orange-100" : "text-slate-500"}`}>
+                          {d.relation}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => setDpDriverId("unassigned")}
+                  className={`p-2 rounded-2xl border text-right transition-all flex items-center gap-2 ${
+                    dpDriverId === "unassigned"
+                      ? "bg-rose-600 text-white border-rose-700 shadow-xs ring-2 ring-rose-300"
+                      : "bg-slate-50 hover:bg-rose-50/60 border-slate-200 text-slate-700"
+                  }`}
+                >
+                  <span className="text-xl shrink-0">⚠️</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-xs truncate">טרם שובץ נהג</p>
+                    <p className={`text-[10px] truncate ${dpDriverId === "unassigned" ? "text-rose-100" : "text-slate-500"}`}>
+                      פתוח לכל מסיע פנוי
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateDriverTask} className="space-y-3 pt-1">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-bold text-slate-700">שעה</label>
+                  <label className="text-xs font-bold text-slate-700">שיוך לילד</label>
+                  <select
+                    value={dpChildId}
+                    onChange={(e) => setDpChildId(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                  >
+                    <option value="all">👧👦 כל הילדים</option>
+                    {childrenList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.avatar} {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700">שעת איסוף/הורדה</label>
                   <input
                     type="time"
                     required
                     value={dpTime}
                     onChange={(e) => setDpTime(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none font-bold"
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700">סוג משימה</label>
-                  <select
-                    value={dpType}
-                    onChange={(e) => setDpType(e.target.value as any)}
-                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
-                  >
-                    <option value="pickup">🚗 איסוף (Pickup)</option>
-                    <option value="dropoff">🏫 הורדה (Dropoff)</option>
-                    <option value="babysitter">👩‍🦰 בייביסיטר</option>
-                    <option value="combined">🔄 משולב</option>
-                  </select>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700">מאיפה אוספים?</label>
+                <label className="text-xs font-bold text-slate-700">סוג נסיעה</label>
+                <select
+                  value={dpType}
+                  onChange={(e) => setDpType(e.target.value as any)}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                >
+                  <option value="pickup">🚗 איסוף בסיום מסגרת (Pickup)</option>
+                  <option value="dropoff">🏫 הורדה בבוקר (Dropoff)</option>
+                  <option value="babysitter">👩‍🦰 בייביסיטר ואיסוף מיוחד</option>
+                  <option value="combined">🔄 משולב (הורדה + איסוף)</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700">מאיפה אוספים?</label>
+                  <div className="flex gap-1 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setDpLocation("שער בית הספר / גן")}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-orange-100 rounded-lg font-bold text-slate-600"
+                    >
+                      🏫 בית ספר
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDpLocation("חוג כדורגל/מוזיקה")}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-orange-100 rounded-lg font-bold text-slate-600"
+                    >
+                      ⚽ חוג
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="text"
                   required
                   placeholder="למשל: בית ספר יסודי - שער ראשי"
                   value={dpLocation}
                   onChange={(e) => setDpLocation(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700">לאן מסיעים (יעד)?</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700">לאן מסיעים (יעד)?</label>
+                  <div className="flex gap-1 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setDpDestination("בית אמא (שרה)")}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-orange-100 rounded-lg font-bold text-slate-600"
+                    >
+                      🏠 בית אמא
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDpDestination("בית אבא (דוד)")}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-orange-100 rounded-lg font-bold text-slate-600"
+                    >
+                      🏠 בית אבא
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="text"
                   placeholder="למשל: חוג כדורגל / בית אמא"
                   value={dpDestination}
                   onChange={(e) => setDpDestination(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
                 />
               </div>
 
@@ -1090,7 +1207,7 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t">
                 <button
                   type="button"
                   onClick={() => setShowDriverPickupModal(false)}
@@ -1100,9 +1217,10 @@ export const CustodyScheduleView: React.FC<CustodyScheduleViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs hover:bg-orange-700"
+                  className="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-extrabold rounded-2xl shadow-md active:scale-95 transition-all flex items-center gap-1.5"
                 >
-                  צור איסוף
+                  <span>🚘</span>
+                  <span>שמור ואישור נהג</span>
                 </button>
               </div>
             </form>
