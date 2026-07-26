@@ -18,14 +18,18 @@ export const DriversView: React.FC<DriversViewProps> = ({
   parents,
   activeParentId,
 }) => {
-  const [selectedDriverId, setSelectedDriverId] = useState<string | "all">("all");
+  const [selectedDriverId, setSelectedDriverId] = useState<string | "all" | "unassigned">("all");
   const [isAddPickupOpen, setIsAddPickupOpen] = useState(false);
   const [isAddDriverOpen, setIsAddDriverOpen] = useState(false);
 
+  // Claim Ride Modal State
+  const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
+  const [claimDriverSelect, setClaimDriverSelect] = useState<string>(drivers[0]?.id || "");
+
   // Form State for new Pickup
-  const [newDriverId, setNewDriverId] = useState(drivers[0]?.id || "");
+  const [newDriverId, setNewDriverId] = useState<string>("unassigned");
   const [newChildId, setNewChildId] = useState("all");
-  const [newType, setNewType] = useState<"pickup" | "dropoff">("pickup");
+  const [newType, setNewType] = useState<"pickup" | "dropoff" | "babysitter" | "combined">("pickup");
   const [newTime, setNewTime] = useState("16:00");
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
   const [newLocation, setNewLocation] = useState("");
@@ -41,10 +45,10 @@ export const DriversView: React.FC<DriversViewProps> = ({
 
   const handleAddPickupSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDriverId || !newLocation) return;
+    if (!newLocation) return;
 
     StorageEngine.addDriverTask({
-      driverId: newDriverId,
+      driverId: newDriverId || "unassigned",
       childId: newChildId,
       type: newType,
       date: newDate,
@@ -62,19 +66,24 @@ export const DriversView: React.FC<DriversViewProps> = ({
     setNewNotes("");
   };
 
+  const handleClaimSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!claimingTaskId || !claimDriverSelect) return;
+    StorageEngine.claimDriverTask(claimingTaskId, claimDriverSelect);
+    setClaimingTaskId(null);
+  };
+
   const handleAddDriverSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!driverName || !driverPhone) return;
 
-    StorageEngine.addDriver(
-      {
-        name: driverName,
-        relation: driverRelation || "נהג/ת מורשה",
-        phone: driverPhone,
-        carInfo: driverCar,
-        avatar: driverAvatar || "🚘",
-      }
-    );
+    StorageEngine.addDriver({
+      name: driverName,
+      relation: driverRelation || "נהג/ת מורשה",
+      phone: driverPhone,
+      carInfo: driverCar,
+      avatar: driverAvatar || "🚘",
+    });
 
     setIsAddDriverOpen(false);
     setDriverName("");
@@ -86,9 +95,12 @@ export const DriversView: React.FC<DriversViewProps> = ({
   const todayStr = new Date().toISOString().split("T")[0];
 
   const filteredTasks = driverTasks.filter((t) => {
+    if (selectedDriverId === "unassigned") return t.driverId === "unassigned";
     if (selectedDriverId !== "all" && t.driverId !== selectedDriverId) return false;
     return true;
   });
+
+  const unassignedCount = driverTasks.filter((t) => t.driverId === "unassigned" && !t.completed).length;
 
   return (
     <div className="space-[#1e293b] space-y-4 pb-24" dir="rtl">
@@ -136,7 +148,23 @@ export const DriversView: React.FC<DriversViewProps> = ({
               : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50"
           }`}
         >
-          כל הנהגים ({driverTasks.length})
+          כל המשימות ({driverTasks.length})
+        </button>
+
+        <button
+          onClick={() => setSelectedDriverId("unassigned")}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all ${
+            selectedDriverId === "unassigned"
+              ? "bg-rose-600 text-white shadow-sm"
+              : "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+          }`}
+        >
+          <span>❓ ללא נהג</span>
+          {unassignedCount > 0 && (
+            <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded-full text-[10px]">
+              {unassignedCount}
+            </span>
+          )}
         </button>
 
         {drivers.map((d) => (
@@ -203,7 +231,7 @@ export const DriversView: React.FC<DriversViewProps> = ({
       <div className="flex items-center justify-between pt-2">
         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
           <Navigation className="w-4 h-4 text-orange-500" />
-          לוח משימות איסוף והורדה
+          לוח משימות איסוף, הורדה ובייביסיטר
         </h3>
         <span className="text-xs text-slate-400">{filteredTasks.length} משימות</span>
       </div>
@@ -212,15 +240,29 @@ export const DriversView: React.FC<DriversViewProps> = ({
       {filteredTasks.length === 0 ? (
         <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 shadow-xs space-y-2">
           <Car className="w-10 h-10 text-slate-300 mx-auto" />
-          <p className="text-sm font-semibold text-slate-600">אין משימות איסוף מוגדרות</p>
-          <p className="text-xs text-slate-400">לחץ על "איסוף חדש לנהג" כדי להגדיר נהג מורשה</p>
+          <p className="text-sm font-semibold text-slate-600">אין משימות איסוף בקטגוריה זו</p>
+          <p className="text-xs text-slate-400">לחץ על "איסוף חדש לנהג" כדי להגדיר נשייעה או משימה</p>
         </div>
       ) : (
         <div className="space-y-2.5">
           {filteredTasks.map((task) => {
             const driver = drivers.find((d) => d.id === task.driverId);
+            const isUnassigned = task.driverId === "unassigned";
             const child = childrenList.find((c) => c.id === task.childId);
             const isToday = task.date === todayStr;
+
+            let typeBadgeClass = "bg-amber-100 text-amber-800";
+            let typeText = "🚗 איסוף";
+            if (task.type === "dropoff") {
+              typeBadgeClass = "bg-blue-100 text-blue-800";
+              typeText = "🚌 הורדה";
+            } else if (task.type === "babysitter") {
+              typeBadgeClass = "bg-purple-100 text-purple-800";
+              typeText = "🍼 בייביסיטר / השגחה";
+            } else if (task.type === "combined") {
+              typeBadgeClass = "bg-emerald-100 text-emerald-800";
+              typeText = "🚘🔄 משולב (איסוף+פיזור)";
+            }
 
             return (
               <div
@@ -228,11 +270,13 @@ export const DriversView: React.FC<DriversViewProps> = ({
                 className={`bg-white rounded-2xl p-4 border transition-all shadow-xs ${
                   task.completed
                     ? "border-slate-100 opacity-60 bg-slate-50/60"
+                    : isUnassigned
+                    ? "border-rose-200 bg-rose-50/30 hover:border-rose-300"
                     : "border-slate-100 hover:border-orange-200"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 flex-1">
                     <button
                       onClick={() => StorageEngine.toggleDriverTask(task.id)}
                       className="mt-0.5 text-slate-400 hover:text-orange-600 transition-colors"
@@ -244,21 +288,15 @@ export const DriversView: React.FC<DriversViewProps> = ({
                       )}
                     </button>
 
-                    <div>
+                    <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            task.type === "pickup"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {task.type === "pickup" ? "איסוף" : "הורדה"}
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${typeBadgeClass}`}>
+                          {typeText}
                         </span>
 
                         <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
                           <Clock className="w-3 h-3 text-slate-400" />
-                          {task.time}
+                          {task.time} ({task.date})
                         </span>
 
                         {isToday && (
@@ -268,22 +306,30 @@ export const DriversView: React.FC<DriversViewProps> = ({
                         )}
                       </div>
 
-                      <p className="text-sm font-bold text-slate-800 mt-1 flex items-center gap-1">
-                        <span>{child ? `${child.avatar} ${child.name}` : "כל הילדים"}</span>
-                        <span className="text-slate-400 font-normal">|</span>
-                        <span className="text-xs text-slate-600">נהג: {driver?.name || "נהג מורשה"}</span>
+                      <p className="text-sm font-bold text-slate-800 mt-1.5 flex items-center gap-1 flex-wrap">
+                        <span>{child ? `${child.avatar} ${child.name}` : "👧👦 כל הילדים"}</span>
+                        <span className="text-slate-300 font-normal">|</span>
+                        {isUnassigned ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200 animate-pulse">
+                            ❓ דרוש נהג! (נסיעה פתוחה)
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-600 font-semibold">
+                            נהג: {driver ? `${driver.avatar} ${driver.name}` : "נהג מורשה"}
+                          </span>
+                        )}
                       </p>
 
                       <div className="mt-2 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                         <div className="flex items-center gap-1.5 text-slate-700 font-medium">
                           <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                          <span>מקום איסוף: </span>
+                          <span>איסוף / יציאה: </span>
                           <span className="font-bold text-slate-900">{task.location}</span>
                         </div>
                         {task.destination && (
                           <div className="flex items-center gap-1.5 text-slate-600">
                             <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span>יעד: </span>
+                            <span>יעד הגעה: </span>
                             <span className="font-medium text-slate-800">{task.destination}</span>
                           </div>
                         )}
@@ -291,25 +337,96 @@ export const DriversView: React.FC<DriversViewProps> = ({
 
                       {task.notes && (
                         <p className="text-xs text-amber-800 bg-amber-50/80 p-2 rounded-lg mt-2 border border-amber-100/60 font-medium">
-                          💡 הערות לנהג: {task.notes}
+                          💡 הערות: {task.notes}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {driver?.phone && (
-                    <a
-                      href={`tel:${driver.phone}`}
-                      className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
-                      title="חייג"
-                    >
-                      <Phone className="w-4 h-4" />
-                    </a>
-                  )}
+                  <div className="flex flex-col items-end gap-2">
+                    {isUnassigned ? (
+                      <button
+                        onClick={() => {
+                          setClaimingTaskId(task.id);
+                          setClaimDriverSelect(drivers[0]?.id || "");
+                        }}
+                        className="px-3 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white text-xs font-bold rounded-xl shadow-xs hover:from-orange-700 hover:to-amber-700 active:scale-95 transition-all flex items-center gap-1"
+                      >
+                        <span>✋ קח נסיעה זו</span>
+                      </button>
+                    ) : (
+                      driver?.phone && (
+                        <a
+                          href={`tel:${driver.phone}`}
+                          className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                          title="חייג לנהג"
+                        >
+                          <Phone className="w-4 h-4" />
+                        </a>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal: Claim Ride */}
+      {claimingTaskId && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-md shadow-xl border border-slate-100 space-y-4" dir="rtl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                <Car className="w-5 h-5 text-orange-500" />
+                שיבוץ נהג / קליטת נסיעה
+              </h3>
+              <button
+                onClick={() => setClaimingTaskId(null)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleClaimSubmit} className="space-y-3 text-xs">
+              <p className="text-slate-600 font-medium">
+                בחר נהג שיקח ויבצע את הנסיעה הזו:
+              </p>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">בחר נהג מהרשימה:</label>
+                <select
+                  value={claimDriverSelect}
+                  onChange={(e) => setClaimDriverSelect(e.target.value)}
+                  className="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-slate-800"
+                >
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.avatar} {d.name} ({d.relation})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-emerald-600 text-white p-3 rounded-2xl font-bold hover:bg-emerald-700 transition-colors shadow-xs"
+                >
+                  קח/שבץ נסיעה
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClaimingTaskId(null)}
+                  className="px-4 bg-slate-100 text-slate-600 p-3 rounded-2xl font-semibold hover:bg-slate-200"
+                >
+                  ביטול
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -320,7 +437,7 @@ export const DriversView: React.FC<DriversViewProps> = ({
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
                 <Car className="w-5 h-5 text-orange-500" />
-                הגדרת איסוף חדש לנהג
+                הגדרת איסוף/נסיעה חדשה
               </h3>
               <button
                 onClick={() => setIsAddPickupOpen(false)}
@@ -332,12 +449,13 @@ export const DriversView: React.FC<DriversViewProps> = ({
 
             <form onSubmit={handleAddPickupSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-600 font-semibold mb-1">בחר נהג מורשה:</label>
+                <label className="block text-slate-600 font-semibold mb-1">בחר נהג מורשה (או השאר פתוח):</label>
                 <select
                   value={newDriverId}
                   onChange={(e) => setNewDriverId(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium"
                 >
+                  <option value="unassigned">❓ ללא נהג (נסיעה פתוחה לקליטה)</option>
                   {drivers.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.avatar} {d.name} ({d.relation})
@@ -367,11 +485,13 @@ export const DriversView: React.FC<DriversViewProps> = ({
                   <label className="block text-slate-600 font-semibold mb-1">סוג משימה:</label>
                   <select
                     value={newType}
-                    onChange={(e) => setNewType(e.target.value as "pickup" | "dropoff")}
+                    onChange={(e) => setNewType(e.target.value as "pickup" | "dropoff" | "babysitter" | "combined")}
                     className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium"
                   >
                     <option value="pickup">🚗 איסוף</option>
-                    <option value="dropoff">🚌 הורדה</option>
+                    <option value="dropoff">🚌 הורדה/פיזור</option>
+                    <option value="babysitter">🍼 בייביסיטר / השגחה</option>
+                    <option value="combined">🚘🔄 משולב (איסוף ופיזור)</option>
                   </select>
                 </div>
 

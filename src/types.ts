@@ -130,11 +130,18 @@ export interface DriverProfile {
   avatar: string; // emoji or icon
 }
 
+export interface ActivityCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  color?: string;
+}
+
 export interface DriverPickupTask {
   id: string;
-  driverId: string;
+  driverId: string; // 'unassigned' or driver ID
   childId: string; // 'child1' | 'child2' | 'all'
-  type: 'pickup' | 'dropoff';
+  type: 'pickup' | 'dropoff' | 'babysitter' | 'combined';
   date: string; // YYYY-MM-DD
   time: string; // e.g. '16:00'
   location: string; // e.g. 'Primary School'
@@ -143,6 +150,16 @@ export interface DriverPickupTask {
   notes?: string;
   assignedByParentId?: string;
 }
+
+export const DEFAULT_ACTIVITY_CATEGORIES: ActivityCategory[] = [
+  { id: "cat_sports", name: "ספורט וכדורגל", emoji: "⚽" },
+  { id: "cat_music", name: "מוזיקה ונגינה", emoji: "🎻" },
+  { id: "cat_swimming", name: "שחייה", emoji: "🏊" },
+  { id: "cat_art", name: "אמנות ויצירה", emoji: "🎨" },
+  { id: "cat_youth", name: "תנועת נוער", emoji: "🏕️" },
+  { id: "cat_dance", name: "מחול ובלט", emoji: "🩰" },
+  { id: "cat_study", name: "לימודים והעשרה", emoji: "📚" },
+];
 
 export const DEFAULT_PIN = "1234";
 

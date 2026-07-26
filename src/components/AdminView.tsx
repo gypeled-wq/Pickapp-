@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Child, ParentProfile, DriverProfile } from "../types";
+import { Child, ParentProfile, DriverProfile, ActivityCategory } from "../types";
 import { StorageEngine } from "../data";
 import {
   ShieldCheck,
@@ -17,6 +17,8 @@ import {
   Phone,
   Save,
   Smile,
+  Tag,
+  Sparkles,
 } from "lucide-react";
 
 interface AdminViewProps {
@@ -30,7 +32,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   parents,
   drivers,
 }) => {
-  const [activeTab, setActiveTab] = useState<"children" | "parents" | "drivers" | "security">("children");
+  const [activeTab, setActiveTab] = useState<"children" | "parents" | "drivers" | "categories" | "security">("children");
 
   // Children editing state
   const [editingChild, setEditingChild] = useState<Child | null>(null);
@@ -52,6 +54,39 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [newDriverPhone, setNewDriverPhone] = useState("");
   const [newDriverCar, setNewDriverCar] = useState("");
   const [newDriverAvatar, setNewDriverAvatar] = useState("🚘");
+
+  // Activity categories state
+  const categoriesList = StorageEngine.getActivityCategories();
+  const [editingCategory, setEditingCategory] = useState<ActivityCategory | null>(null);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryEmoji, setNewCategoryEmoji] = useState("⚽");
+
+  const CATEGORY_EMOJI_LIST = ["⚽", "🎻", "🏊", "🎨", "🏕️", "🩰", "📚", "🥋", "🏀", "🧩", "♟️", "🎭", "🧘", "🚲"];
+
+  const handleSaveCategoryEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    StorageEngine.updateActivityCategory(editingCategory);
+    setEditingCategory(null);
+  };
+
+  const handleAddCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    StorageEngine.addActivityCategory({
+      name: newCategoryName.trim(),
+      emoji: newCategoryEmoji,
+    });
+    setNewCategoryName("");
+    setIsAddingCategory(false);
+  };
+
+  const handleDeleteCategory = (id: string, name: string) => {
+    if (confirm(`האם למחוק את קטגוריית החוג "${name}"?`)) {
+      StorageEngine.deleteActivityCategory(id);
+    }
+  };
 
   // Security / PIN state
   const [currentPin, setCurrentPin] = useState(StorageEngine.getPinCode() || "1234");
@@ -162,10 +197,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </p>
 
         {/* Tab Switcher inside Admin */}
-        <div className="grid grid-cols-4 gap-1.5 mt-4 bg-white/10 p-1 rounded-2xl backdrop-blur-md">
+        <div className="grid grid-cols-5 gap-1 mt-4 bg-white/10 p-1 rounded-2xl backdrop-blur-md text-[11px]">
           <button
             onClick={() => setActiveTab("children")}
-            className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+            className={`py-2 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 ${
               activeTab === "children"
                 ? "bg-white text-indigo-950 shadow-sm"
                 : "text-slate-300 hover:text-white"
@@ -177,7 +212,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <button
             onClick={() => setActiveTab("parents")}
-            className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+            className={`py-2 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 ${
               activeTab === "parents"
                 ? "bg-white text-indigo-950 shadow-sm"
                 : "text-slate-300 hover:text-white"
@@ -189,7 +224,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <button
             onClick={() => setActiveTab("drivers")}
-            className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+            className={`py-2 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 ${
               activeTab === "drivers"
                 ? "bg-white text-indigo-950 shadow-sm"
                 : "text-slate-300 hover:text-white"
@@ -200,8 +235,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab("categories")}
+            className={`py-2 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 ${
+              activeTab === "categories"
+                ? "bg-white text-indigo-950 shadow-sm"
+                : "text-slate-300 hover:text-white"
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>חוגים</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab("security")}
-            className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+            className={`py-2 px-1 rounded-xl font-bold transition-all flex items-center justify-center gap-1 ${
               activeTab === "security"
                 ? "bg-white text-indigo-950 shadow-sm"
                 : "text-slate-300 hover:text-white"
@@ -784,7 +831,188 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
       )}
 
-      {/* TAB 4: SECURITY & PIN */}
+      {/* TAB 4: ACTIVITY CATEGORIES MANAGEMENT */}
+      {activeTab === "categories" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+              <Tag className="w-4 h-4 text-emerald-600" />
+              קטגוריות חוגים ופעילויות ({categoriesList.length})
+            </h3>
+            <button
+              onClick={() => setIsAddingCategory(true)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>הוסף קטגוריית חוג</span>
+            </button>
+          </div>
+
+          {/* Form: Add Activity Category */}
+          {isAddingCategory && (
+            <form onSubmit={handleAddCategorySubmit} className="bg-emerald-50/80 border border-emerald-200 rounded-3xl p-4 space-y-3 text-xs">
+              <div className="flex justify-between items-center border-b border-emerald-200 pb-2">
+                <span className="font-extrabold text-emerald-900">הוספת קטגוריית חוג חדשה</span>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCategory(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">שם הקטגוריה / החוג *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="לדוגמה: ג'ודו וקרב מגע"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-white font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">אימוג'י לקטגוריה</label>
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                    {CATEGORY_EMOJI_LIST.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setNewCategoryEmoji(emoji)}
+                        className={`text-lg p-1.5 rounded-xl transition-all ${
+                          newCategoryEmoji === emoji ? "bg-emerald-200 scale-110" : "hover:bg-white"
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-emerald-200/60">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCategory(false)}
+                  className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-xl font-bold"
+                >
+                  ביטול
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-emerald-600 text-white rounded-xl font-bold shadow-xs hover:bg-emerald-700"
+                >
+                  שמור קטגוריה
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Categories List */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {categoriesList.map((cat) => (
+              <div key={cat.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs space-y-2">
+                {editingCategory?.id === cat.id ? (
+                  <form onSubmit={handleSaveCategoryEdit} className="space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-800">עריכת קטגוריה</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory(null)}
+                        className="text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">שם הקטגוריה</label>
+                        <input
+                          type="text"
+                          required
+                          value={editingCategory.name}
+                          onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                          className="w-full p-2 rounded-xl border border-slate-200 bg-slate-50 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">אימוג'י</label>
+                        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                          {CATEGORY_EMOJI_LIST.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => setEditingCategory({ ...editingCategory, emoji })}
+                              className={`text-base p-1 rounded-lg transition-all ${
+                                editingCategory.emoji === emoji ? "bg-emerald-200 scale-110" : "hover:bg-slate-100"
+                              }`}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory(null)}
+                        className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-xl font-bold"
+                      >
+                        ביטול
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl font-bold"
+                      >
+                        עדכן
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-800 flex items-center justify-center text-xl shadow-2xs">
+                        {cat.emoji || "🏷️"}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-900">{cat.name}</h4>
+                        <p className="text-[11px] text-slate-400 font-medium">קטגוריית חוג פעילה</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setEditingCategory(cat)}
+                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                        title="ערוך קטגוריה"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                        title="מחק קטגוריה"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: SECURITY & PIN */}
       {activeTab === "security" && (
         <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-4">
           <div className="flex items-center gap-3 border-b pb-3">

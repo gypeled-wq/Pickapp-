@@ -17,9 +17,11 @@ import {
   ChatMessage,
   DriverProfile,
   DriverPickupTask,
+  ActivityCategory,
   DEFAULT_PARENTS,
   DEFAULT_CHILDREN,
   DEFAULT_DRIVERS,
+  DEFAULT_ACTIVITY_CATEGORIES,
   DEFAULT_PIN,
 } from "./types";
 import { collection, onSnapshot, doc, setDoc, deleteDoc, getDocs } from "firebase/firestore";
@@ -33,6 +35,19 @@ const INITIAL_PARENTS: ParentProfile[] = DEFAULT_PARENTS;
 const INITIAL_DRIVERS: DriverProfile[] = DEFAULT_DRIVERS;
 
 const INITIAL_DRIVER_TASKS: DriverPickupTask[] = [
+  {
+    id: "dtask_unassigned_1",
+    driverId: "unassigned",
+    childId: "child1",
+    type: "combined",
+    date: new Date().toISOString().split("T")[0],
+    time: "17:15",
+    location: "בריכת שחייה עירונית",
+    destination: "בית אמא (שרה)",
+    completed: false,
+    notes: "דרוש נהג! נסיעה פתוחה לכל נהג פנוי בסיום חוג שחייה",
+    assignedByParentId: "parent1",
+  },
   {
     id: "dtask_1",
     driverId: "driver1", // Grandpa Eli
@@ -50,13 +65,13 @@ const INITIAL_DRIVER_TASKS: DriverPickupTask[] = [
     id: "dtask_2",
     driverId: "driver2", // Dana Babysitter
     childId: "child2", // Noah
-    type: "pickup",
+    type: "babysitter",
     date: new Date().toISOString().split("T")[0],
     time: "15:45",
     location: "גן חובה - רחוב האורנים",
     destination: "בית אבא (דוד)",
     completed: true,
-    notes: "לוודא שיש לו את הכינור",
+    notes: "השגחה + לוודא שיש לו את הכינור",
     assignedByParentId: "parent2",
   },
   {
@@ -328,6 +343,7 @@ const KEYS = {
   MESSAGES: "nestflow_messages_v1",
   DRIVERS: "nestflow_drivers_v1",
   DRIVER_TASKS: "nestflow_driver_tasks_v1",
+  ACTIVITY_CATEGORIES: "nestflow_act_categories_v1",
   PIN_CODE: "nestflow_pin_code_v1",
 };
 
@@ -392,6 +408,7 @@ let currentLogs: ActivityLog[] = loadData(KEYS.LOGS, INITIAL_LOGS);
 let currentMessages: ChatMessage[] = loadData(KEYS.MESSAGES, []);
 let currentDrivers: DriverProfile[] = loadData(KEYS.DRIVERS, INITIAL_DRIVERS);
 let currentDriverTasks: DriverPickupTask[] = loadData(KEYS.DRIVER_TASKS, INITIAL_DRIVER_TASKS);
+let currentActivityCategories: ActivityCategory[] = loadData(KEYS.ACTIVITY_CATEGORIES, DEFAULT_ACTIVITY_CATEGORIES);
 let currentPinCode: string = loadData(KEYS.PIN_CODE, DEFAULT_PIN);
 
 function cleanForFirestore(obj: any): any {
@@ -439,6 +456,7 @@ async function startFirebaseSync() {
   await syncCollection("messages", currentMessages, []);
   await syncCollection("drivers", currentDrivers, INITIAL_DRIVERS);
   await syncCollection("driverTasks", currentDriverTasks, INITIAL_DRIVER_TASKS);
+  await syncCollection("activityCategories", currentActivityCategories, DEFAULT_ACTIVITY_CATEGORIES);
 
   // Real-time Firestore Listeners
   onSnapshot(collection(db, "schedules"), (snap) => {
@@ -529,6 +547,16 @@ async function startFirebaseSync() {
       notifyAll();
     }
   }, (err) => console.warn("Firestore driverTasks snapshot error:", err));
+
+  onSnapshot(collection(db, "activityCategories"), (snap) => {
+    const list: ActivityCategory[] = [];
+    snap.forEach((d) => list.push(d.data() as ActivityCategory));
+    if (list.length > 0) {
+      currentActivityCategories = list;
+      saveData(KEYS.ACTIVITY_CATEGORIES, list);
+      notifyAll();
+    }
+  }, (err) => console.warn("Firestore activityCategories snapshot error:", err));
 }
 
 startFirebaseSync();
@@ -942,6 +970,64 @@ export const StorageEngine = {
     saveData(KEYS.DRIVER_TASKS, currentDriverTasks);
     notifyAll();
     deleteDoc(doc(db, "driverTasks", id));
+  },
+
+  updateDriverTask(task: DriverPickupTask) {
+    const idx = currentDriverTasks.findIndex((t) => t.id === task.id);
+    if (idx !== -1) {
+      currentDriverTasks[idx] = task;
+      saveData(KEYS.DRIVER_TASKS, currentDriverTasks);
+      notifyAll();
+      setDoc(doc(db, "driverTasks", task.id), cleanForFirestore(task));
+      this.addLog("Driver Task Updated", `Updated pickup task for ${task.date}`);
+    }
+  },
+
+  claimDriverTask(taskId: string, driverId: string) {
+    const idx = currentDriverTasks.findIndex((t) => t.id === taskId);
+    if (idx !== -1) {
+      currentDriverTasks[idx].driverId = driverId;
+      saveData(KEYS.DRIVER_TASKS, currentDriverTasks);
+      notifyAll();
+      setDoc(doc(db, "driverTasks", taskId), cleanForFirestore(currentDriverTasks[idx]));
+      this.addLog("Driver Task Claimed", `Driver ${driverId} claimed pickup task`);
+    }
+  },
+
+  // Activity Categories
+  getActivityCategories(): ActivityCategory[] {
+    return currentActivityCategories;
+  },
+
+  addActivityCategory(cat: Omit<ActivityCategory, "id">): ActivityCategory {
+    const newCat: ActivityCategory = {
+      ...cat,
+      id: "cat_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+    };
+    currentActivityCategories.push(newCat);
+    saveData(KEYS.ACTIVITY_CATEGORIES, currentActivityCategories);
+    notifyAll();
+    setDoc(doc(db, "activityCategories", newCat.id), cleanForFirestore(newCat));
+    this.addLog("Activity Category Added", `Added category ${newCat.name}`);
+    return newCat;
+  },
+
+  updateActivityCategory(cat: ActivityCategory) {
+    const idx = currentActivityCategories.findIndex((c) => c.id === cat.id);
+    if (idx !== -1) {
+      currentActivityCategories[idx] = cat;
+      saveData(KEYS.ACTIVITY_CATEGORIES, currentActivityCategories);
+      notifyAll();
+      setDoc(doc(db, "activityCategories", cat.id), cleanForFirestore(cat));
+      this.addLog("Activity Category Updated", `Updated category ${cat.name}`);
+    }
+  },
+
+  deleteActivityCategory(id: string) {
+    currentActivityCategories = currentActivityCategories.filter((c) => c.id !== id);
+    saveData(KEYS.ACTIVITY_CATEGORIES, currentActivityCategories);
+    notifyAll();
+    deleteDoc(doc(db, "activityCategories", id));
   },
 
   // PIN Protection
